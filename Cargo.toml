@@ -1,0 +1,15 @@
+[package]
+name = "pikkr"
+version = "0.1.0"
+authors = ["Keiji Yoshida <kjmrknsn@gmail.com>"]
+description = "JSON Parser which picks up values directly without performing tokenization"
+documentation = "https://docs.rs/pikkr"
+homepage = "https://github.com/pikkr/pikkr"
+repository = "https://github.com/pikkr/pikkr"
+readme = "README.md"
+keywords = ["pikkr", "json", "simd"]
+categories = ["algorithms", "data-structures", "parser-implementations", "parsing", "text-processing"]
+license = "MIT/Apache-2.0"
+
+[dependencies]
+x86intrin = "0.4.3"

@@ -1,0 +1,14 @@
+[root]
+name = "pikkr"
+version = "0.1.0"
+dependencies = [
+ "x86intrin 0.4.3 (registry+https://github.com/rust-lang/crates.io-index)",
+]
+
+[[package]]
+name = "x86intrin"
+version = "0.4.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+
+[metadata]
+"checksum x86intrin 0.4.3 (registry+https://github.com/rust-lang/crates.io-index)" = "5f65e7a74c19065448f1f36de5100f947c9309244c084ded5594ddf6d588706d"
