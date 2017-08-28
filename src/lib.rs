@@ -1,7 +1,13 @@
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn it_works() {
-        assert_eq!(2 + 2, 4);
-    }
-}
+extern crate fnv;
+extern crate x86intrin;
+
+mod avx;
+mod bit;
+mod index_builder;
+mod parser;
+mod pikkr;
+mod query;
+mod stat;
+mod utf8;
+
+pub use pikkr::Pikkr;
