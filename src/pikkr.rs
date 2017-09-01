@@ -11,6 +11,7 @@ use x86intrin::m256i;
 
 const ROOT_QUERY_STR_OFFSET: usize = 2;
 
+/// JSON parser which picks up values directly without performing tokenization
 pub struct Pikkr<'a> {
     backslash: m256i,
     quote: m256i,
@@ -32,6 +33,7 @@ pub struct Pikkr<'a> {
 }
 
 impl<'a> Pikkr<'a> {
+    /// Creates a JSON parser and returns it.
     #[inline]
     pub fn new(query_strs: &'a Vec<&'a[u8]>, train_num: usize) -> Pikkr<'a> {
         let mut p = Pikkr {
@@ -65,6 +67,7 @@ impl<'a> Pikkr<'a> {
         p
     }
 
+    /// Parses a JSON record and returns the result.
     #[inline]
     pub fn parse<'b>(&mut self, rec: &'b[u8]) -> Vec<Option<&'b[u8]>> {
         let rec_len = rec.len();

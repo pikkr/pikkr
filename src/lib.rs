@@ -1,3 +1,4 @@
+//! JSON parser which picks up values directly without performing tokenization
 extern crate fnv;
 extern crate x86intrin;
 
