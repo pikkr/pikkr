@@ -256,6 +256,14 @@ mod tests {
                 rec: r#"{"f1": "\"f1\": \\"}"#,
                 want: vec![Some(r#""\"f1\": \\""#.as_bytes()), None, None, None, None, None, None],
             },
+            TestCase {
+                rec: r#"
+                    	{
+                     	"f1" 	 : 	 "b"
+                    }
+                "#,
+                want: vec![Some(r#""b""#.as_bytes()), None, None, None, None, None, None],
+            }
         ];
         for t in test_cases {
             let got = p.parse(t.rec.as_bytes());
