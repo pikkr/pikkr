@@ -265,7 +265,6 @@ mod tests {
         ];
 
         for test_case in test_cases {
-            println!("{:b} {:b} {:b}", test_case.x, test_case.x.wrapping_sub(1), s(test_case.x));
             assert_eq!(test_case.want, s(test_case.x));
         }
     }

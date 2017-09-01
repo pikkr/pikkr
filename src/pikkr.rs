@@ -208,74 +208,124 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_pikkr_parse() {
+    fn test_pikkr_basic_parse() {
         let queries = vec![
-            "$.aaa".as_bytes(),
-            "$.bbb.ddd".as_bytes(),
-            "$.fff".as_bytes(),
+            "$.f1".as_bytes(),
+            "$.f2".as_bytes(),
+            "$.f2.f1".as_bytes(),
+            "$.f2.f2.f1".as_bytes(),
+            "$.f2.f3".as_bytes(),
+            "$.f3".as_bytes(),
+            "$.f4".as_bytes(),
         ];
+        let mut p = Pikkr::new(&queries, 1000000000);
+        struct TestCase<'a> {
+            rec: &'a str,
+            want: Vec<Option<&'a[u8]>>,
+        }
+        let test_cases = vec![
+            TestCase {
+                rec: r#"{}"#,
+                want: vec![None, None, None, None, None, None, None],
+            },
+            TestCase {
+                rec: r#"{"f0": "a"}"#,
+                want: vec![None, None, None, None, None, None, None],
+            },
+            TestCase {
+                rec: r#"{"f0": "a", "f1": "b"}"#,
+                want: vec![Some(r#""b""#.as_bytes()), None, None, None, None, None, None],
+            },
+            TestCase {
+                rec: r#"{"f0": "a", "f1": "b", "f2": {"f1": 1, "f2": {"f1": "c", "f2": "d"}}, "f3": [1, 2, 3]}"#,
+                want: vec![
+                    Some(r#""b""#.as_bytes()),
+                    Some(r#"{"f1": 1, "f2": {"f1": "c", "f2": "d"}}"#.as_bytes()),
+                    Some(r#"1"#.as_bytes()),
+                    Some(r#""c""#.as_bytes()),
+                    None,
+                    Some(r#"[1, 2, 3]"#.as_bytes()),
+                    None,
+                ]
+            },
+            TestCase {
+                rec: r#"{"f1": "Português do Brasil,Català,Deutsch,Español,Français,Bahasa,Italiano,עִבְרִית,日本語,한국어,Română,中文（简体）,中文（繁體）,Українська,Ўзбекча,Türkçe"}"#,
+                want: vec![Some(r#""Português do Brasil,Català,Deutsch,Español,Français,Bahasa,Italiano,עִבְרִית,日本語,한국어,Română,中文（简体）,中文（繁體）,Українська,Ўзбекча,Türkçe""#.as_bytes()), None, None, None, None, None, None],
+            },
+            TestCase {
+                rec: r#"{"f1": "\"f1\": \\"}"#,
+                want: vec![Some(r#""\"f1\": \\""#.as_bytes()), None, None, None, None, None, None],
+            },
+        ];
+        for t in test_cases {
+            let got = p.parse(t.rec.as_bytes());
+            assert_eq!(t.want, got);
+        }
+    }
 
-        let mut p = Pikkr::new(&queries, 2);
-
-        let rec = r#" {"aaa": "AAA", "bbb": {"ccc": "CCC", "ddd":"DDD", "eee": "EEE"}  , "fff":111  } "#.as_bytes();
-        let v = p.parse(rec);
-        println!("rec: {}", unsafe { String::from_utf8_unchecked(rec.to_vec()) });
-        for (i, x) in v.iter().enumerate() {
-            println!("{}: {}", unsafe { String::from_utf8_unchecked(queries[i].to_vec()) }, match *x {
-                Some(x) => unsafe { String::from_utf8_unchecked(x.to_vec()) },
-                _ => String::from("None"),
-            });
+    #[test]
+    fn test_pikkr_speculative_parse() {
+        let queries = vec![
+            "$.f1".as_bytes(),
+            "$.f2".as_bytes(),
+            "$.f2.f1".as_bytes(),
+            "$.f2.f2.f1".as_bytes(),
+            "$.f3".as_bytes(),
+        ];
+        let mut p = Pikkr::new(&queries, 1);
+        struct TestCase<'a> {
+            rec: &'a str,
+            want: Vec<Option<&'a[u8]>>,
         }
-        println!("====");
-        let rec = r#" {"fff": 222, "bbb": {"ccc": "CCC", "ddd":"DDD", "eee": "EEE"}  , "aaa":"AAAA"  } "#.as_bytes();
-        let v = p.parse(rec);
-        println!("rec: {}", unsafe { String::from_utf8_unchecked(rec.to_vec()) });
-        for (i, x) in v.iter().enumerate() {
-            println!("{}: {}", unsafe { String::from_utf8_unchecked(queries[i].to_vec()) }, match *x {
-                Some(x) => unsafe { String::from_utf8_unchecked(x.to_vec()) },
-                _ => String::from("None"),
-            });
+        let test_cases = vec![
+            TestCase {
+                rec: r#"{"f0": "a", "f1": "b", "f2": {"f1": 1, "f2": {"f1": "c", "f2": "d"}}, "f3": [1, 2, 3]}"#,
+                want: vec![
+                    Some(r#""b""#.as_bytes()),
+                    Some(r#"{"f1": 1, "f2": {"f1": "c", "f2": "d"}}"#.as_bytes()),
+                    Some(r#"1"#.as_bytes()),
+                    Some(r#""c""#.as_bytes()),
+                    Some(r#"[1, 2, 3]"#.as_bytes()),
+                ]
+            },
+            TestCase {
+                rec: r#"{"f0": "a", "f1": "b", "f2": {"f1": 1, "f2": {"f1": "c", "f2": "d"}}, "f3": [1, 2, 3]}"#,
+                want: vec![
+                    Some(r#""b""#.as_bytes()),
+                    Some(r#"{"f1": 1, "f2": {"f1": "c", "f2": "d"}}"#.as_bytes()),
+                    Some(r#"1"#.as_bytes()),
+                    Some(r#""c""#.as_bytes()),
+                    Some(r#"[1, 2, 3]"#.as_bytes()),
+                ]
+            },
+            TestCase {
+                rec: r#"{"f1": "b", "f0": "a", "f3": [1, 2, 3], "f2": {"f2": {"f2": "d", "f1": "c"}, "f1": 1}}"#,
+                want: vec![
+                    Some(r#""b""#.as_bytes()),
+                    Some(r#"{"f2": {"f2": "d", "f1": "c"}, "f1": 1}"#.as_bytes()),
+                    Some(r#"1"#.as_bytes()),
+                    Some(r#""c""#.as_bytes()),
+                    Some(r#"[1, 2, 3]"#.as_bytes()),
+                ]
+            },
+            TestCase {
+                rec: r#"{"f0": "a", "f1": "b", "f2": {"f1": 1, "f2": {"f1": "c", "f2": "d"}}}"#,
+                want: vec![
+                    Some(r#""b""#.as_bytes()),
+                    Some(r#"{"f1": 1, "f2": {"f1": "c", "f2": "d"}}"#.as_bytes()),
+                    Some(r#"1"#.as_bytes()),
+                    Some(r#""c""#.as_bytes()),
+                    None,
+                ]
+            },
+            TestCase {
+                rec: r#"{}"#,
+                want: vec![None, None, None, None, None],
+            }
+        ];
+        for t in test_cases {
+            let got = p.parse(t.rec.as_bytes());
+            assert_eq!(t.want, got);
         }
-        println!("====");
-        let rec = r#" {"aaa": "AAA", "bbb": {"ccc": "CCC", "ddd":"DDD", "eee": "EEE"}  , "fff":111  } "#.as_bytes();
-        let v = p.parse(rec);
-        println!("rec: {}", unsafe { String::from_utf8_unchecked(rec.to_vec()) });
-        for (i, x) in v.iter().enumerate() {
-            println!("{}: {}", unsafe { String::from_utf8_unchecked(queries[i].to_vec()) }, match *x {
-                Some(x) => unsafe { String::from_utf8_unchecked(x.to_vec()) },
-                _ => String::from("None"),
-            });
-        }
-        println!("====");
-        let rec = r#" {"fff": 222, "bbb": {"ccc": "CCC", "ddd":"DDD", "eee": "EEE"}  , "aaa":"AAAA"  } "#.as_bytes();
-        let v = p.parse(rec);
-        println!("rec: {}", unsafe { String::from_utf8_unchecked(rec.to_vec()) });
-        for (i, x) in v.iter().enumerate() {
-            println!("{}: {}", unsafe { String::from_utf8_unchecked(queries[i].to_vec()) }, match *x {
-                Some(x) => unsafe { String::from_utf8_unchecked(x.to_vec()) },
-                _ => String::from("None"),
-            });
-        }
-        println!("====");
-        let rec = r#" {"fff": 222, "bbb": {"ccc": "CCC", "eee":"EEEE", "ddd": "DDDD"}  , "aaa":"AAAA"  } "#.as_bytes();
-        let v = p.parse(rec);
-        println!("rec: {}", unsafe { String::from_utf8_unchecked(rec.to_vec()) });
-        for (i, x) in v.iter().enumerate() {
-            println!("{}: {}", unsafe { String::from_utf8_unchecked(queries[i].to_vec()) }, match *x {
-                Some(x) => unsafe { String::from_utf8_unchecked(x.to_vec()) },
-                _ => String::from("None"),
-            });
-        }
-        println!("====");
-        let rec = r#" {"fff": 222, "bbb": {"ccc": "CCC", "eee":"EEEE"}  , "aaa":"AAAA"  } "#.as_bytes();
-        let v = p.parse(rec);
-        println!("rec: {}", unsafe { String::from_utf8_unchecked(rec.to_vec()) });
-        for (i, x) in v.iter().enumerate() {
-            println!("{}: {}", unsafe { String::from_utf8_unchecked(queries[i].to_vec()) }, match *x {
-                Some(x) => unsafe { String::from_utf8_unchecked(x.to_vec()) },
-                _ => String::from("None"),
-            });
-        }
-
     }
 }
