@@ -51,4 +51,59 @@ Memory: 16 GB
 
 ## Example
 
+### Code
+
+```rust
+extern crate pikkr;
+
+fn main() {
+    let queries = vec![
+        "$.f1".as_bytes(),
+        "$.f2.f1".as_bytes(),
+    ];
+    let train_num = 2; // Number of records used as training data
+                            // before Pikkr starts performing speculative
+                            // parsing.
+    let mut p = pikkr::Pikkr::new(&queries, train_num);
+    let recs = vec![
+        r#"{"f1": "a", "f2": {"f1": 1, "f2": true}}"#,
+        r#"{"f1": "b", "f2": {"f1": 2, "f2": true}}"#,
+        r#"{"f1": "c", "f2": {"f1": 3, "f2": true}}"#,
+        r#"{"f2": {"f2": true, "f1": 4}, "f1": "d"}"#,
+        r#"{"f2": {"f2": true, "f1": 5}}"#,
+        r#"{"f1": "e"}"#
+    ];
+    for rec in recs {
+        let results = p.parse(rec.as_bytes());
+        for result in results {
+            print!("{} ", match result {
+                Some(result) => String::from_utf8(result.to_vec()).unwrap(),
+                None => String::from("None"),
+            });
+        }
+        println!();
+    }
+}
+```
+
+### Build
+
+```bash
+$ cargo --version
+cargo 0.22.0-nightly (3d3f2c05d 2017-08-27) # Make sure that nightly release is being used.
+$ RUSTFLAGS="-C target-cpu=native" cargo build --release
+```
+
+### Run
+
+```bash
+$ ./target/release/[package name]
+"a" 1
+"b" 2
+"c" 3
+"d" 4
+None 5
+"e" None
+```
+
 ## Restrictions
