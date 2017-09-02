@@ -62,8 +62,7 @@ fn main() {
         "$.f2.f1".as_bytes(),
     ];
     let train_num = 2; // Number of records used as training data
-                            // before Pikkr starts performing speculative
-                            // parsing.
+                       // before Pikkr starts speculative parsing.
     let mut p = pikkr::Pikkr::new(&queries, train_num);
     let recs = vec![
         r#"{"f1": "a", "f2": {"f1": 1, "f2": true}}"#,
