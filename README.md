@@ -1,5 +1,7 @@
 # Pikkr
 
+[![Crates.io version shield](https://img.shields.io/crates/v/pikkr.svg)](https://crates.io/crates/pikkr)
+
 JSON parser which picks up values directly without performing tokenization in Rust
 
 ## Abstract
@@ -39,7 +41,7 @@ Memory: 16 GB
 
 * [serde_json](https://crates.io/crates/serde_json) 1.0.2
 * [json](https://crates.io/crates/json) 0.11.9
-* [pikkr](https://crates.io/crates/pikkr) 0.4.5
+* [pikkr](https://crates.io/crates/pikkr) 0.5.0
 
 ### JSON Data
 
