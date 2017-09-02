@@ -69,7 +69,7 @@ fn main() {
     let recs = vec![
         r#"{"f1": "a", "f2": {"f1": 1, "f2": true}}"#,
         r#"{"f1": "b", "f2": {"f1": 2, "f2": true}}"#,
-        r#"{"f1": "c", "f2": {"f1": 3, "f2": true}}"#,
+        r#"{"f1": "c", "f2": {"f1": 3, "f2": true}}"#, // Speculative parsing starts from this record.
         r#"{"f2": {"f2": true, "f1": 4}, "f1": "d"}"#,
         r#"{"f2": {"f2": true, "f1": 5}}"#,
         r#"{"f1": "e"}"#
