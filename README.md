@@ -107,6 +107,10 @@ None 5
 "e" None
 ```
 
+## Documentation
+
+* [pikkr - Rust](https://pikkr.github.io/doc/pikkr/)
+
 ## Restrictions
 
 * [Rust nightly channel](https://github.com/rust-lang-nursery/rustup.rs/blob/master/README.md#working-with-nightly-rust) and [CPUs with AVX2](https://en.wikipedia.org/wiki/Advanced_Vector_Extensions#CPUs_with_AVX2) are needed to build Rust source code which depends on Pikkr and run the executable binary file because Pikkr uses AVX2 Instructions.
