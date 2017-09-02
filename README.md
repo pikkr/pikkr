@@ -18,6 +18,8 @@ Please read the paper mentioned in the opening paragraph for the details of the 
 
 ## Performance
 
+![](img/benchmark.png)
+
 ## Example
 
 ## Restrictions
