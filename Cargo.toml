@@ -1,6 +1,6 @@
 [package]
 name = "pikkr"
-version = "0.4.8"
+version = "0.5.0"
 authors = ["Keiji Yoshida <kjmrknsn@gmail.com>"]
 description = "JSON Parser which picks up values directly without performing tokenization in Rust"
 documentation = "https://github.com/pikkr/pikkr"
