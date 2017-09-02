@@ -20,7 +20,7 @@ Please read the paper mentioned in the opening paragraph for the details of the 
 
 ### Benchmark Result
 
-![](img/benchmark.png)
+![](https://raw.githubusercontent.com/pikkr/pikkr/master/img/benchmark.png)
 
 ### Hardware
 
