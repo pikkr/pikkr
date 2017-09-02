@@ -18,7 +18,36 @@ Please read the paper mentioned in the opening paragraph for the details of the 
 
 ## Performance
 
+### Benchmark Result
+
 ![](img/benchmark.png)
+
+### Hardware
+
+```
+Model Name: MacBook Pro
+Processor Name: Intel Core i7
+Processor Speed: 3.3 GHz
+Number of Processors: 1
+Total Number of Cores: 2
+L2 Cache (per Core): 256 KB
+L3 Cache: 4 MB
+Memory: 16 GB
+```
+
+### Crates
+
+* [serde_json](https://crates.io/crates/serde_json) 1.0.2
+* [json](https://crates.io/crates/json) 0.11.9
+* [pikkr](https://crates.io/crates/pikkr) 0.4.5
+
+### JSON Data
+
+* "a JSON data set of startup company information" on [JSON Data Sets | JSON Studio](http://jsonstudio.com/resources/).
+
+### Benchmark Code
+
+* [pikkr/rust-json-parser-benchmark: Rust JSON Parser Benchmark](https://github.com/pikkr/rust-json-parser-benchmark)
 
 ## Example
 
