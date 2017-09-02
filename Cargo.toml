@@ -1,6 +1,6 @@
 [package]
 name = "pikkr"
-version = "0.4.4"
+version = "0.4.5"
 authors = ["Keiji Yoshida <kjmrknsn@gmail.com>"]
 description = "JSON Parser which picks up values directly without performing tokenization"
 documentation = "https://github.com/pikkr/pikkr"
