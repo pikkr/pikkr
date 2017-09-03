@@ -39,7 +39,7 @@ pub fn build_structural_quote_bitmap(b_backslash: &Vec<u64>, b_quote: &mut Vec<u
                         break;
                     }
                 } else {
-                    let backslash_b_mask = backslash_b & 0b11111111_11111111_11111111_11111111_11111111_11111111_11111111_11111111u64;
+                    let backslash_b_mask = backslash_b & 0xffffffffffffffffu64;
                     let leading_ones_num = (!backslash_b_mask).leading_zeros();
                     consecutive_backslash_num += leading_ones_num;
                     if leading_ones_num != 64 {
