@@ -2,6 +2,7 @@ use super::avx;
 use super::bit;
 use super::index_builder;
 use super::parser;
+use super::result::{ParseError, ParseResult};
 use super::query::Query;
 use super::stat::Stat;
 use super::utf8::{BACKSLASH, COLON, DOT, LEFT_BRACE, QUOTE, RIGHT_BRACE};
@@ -69,8 +70,11 @@ impl<'a> Pikkr<'a> {
 
     /// Parses a JSON record and returns the result.
     #[inline]
-    pub fn parse<'b>(&mut self, rec: &'b[u8]) -> Vec<Option<&'b[u8]>> {
+    pub fn parse<'b>(&mut self, rec: &'b[u8]) -> ParseResult<Vec<Option<&'b[u8]>>> {
         let rec_len = rec.len();
+        if rec_len == 0 {
+            return Err(ParseError::UnexpectedEof);
+        }
 
         let rec_m256i_len = (rec_len + 31) / 32;
         let mut rec_m256i = Vec::with_capacity(rec_m256i_len);
@@ -120,7 +124,7 @@ impl<'a> Pikkr<'a> {
             set_result(rec, &self.queries, query_str, &mut results, ROOT_QUERY_STR_OFFSET);
         }
 
-        results
+        Ok(results)
     }
 }
 
@@ -224,24 +228,24 @@ mod tests {
         let mut p = Pikkr::new(&queries, 1000000000);
         struct TestCase<'a> {
             rec: &'a str,
-            want: Vec<Option<&'a[u8]>>,
+            want: ParseResult<Vec<Option<&'a[u8]>>>,
         }
         let test_cases = vec![
             TestCase {
                 rec: r#"{}"#,
-                want: vec![None, None, None, None, None, None, None],
+                want: Ok(vec![None, None, None, None, None, None, None]),
             },
             TestCase {
                 rec: r#"{"f0": "a"}"#,
-                want: vec![None, None, None, None, None, None, None],
+                want: Ok(vec![None, None, None, None, None, None, None]),
             },
             TestCase {
                 rec: r#"{"f0": "a", "f1": "b"}"#,
-                want: vec![Some(r#""b""#.as_bytes()), None, None, None, None, None, None],
+                want: Ok(vec![Some(r#""b""#.as_bytes()), None, None, None, None, None, None]),
             },
             TestCase {
                 rec: r#"{"f0": "a", "f1": "b", "f2": {"f1": 1, "f2": {"f1": "c", "f2": "d"}}, "f3": [1, 2, 3]}"#,
-                want: vec![
+                want: Ok(vec![
                     Some(r#""b""#.as_bytes()),
                     Some(r#"{"f1": 1, "f2": {"f1": "c", "f2": "d"}}"#.as_bytes()),
                     Some(r#"1"#.as_bytes()),
@@ -249,15 +253,15 @@ mod tests {
                     None,
                     Some(r#"[1, 2, 3]"#.as_bytes()),
                     None,
-                ]
+                ])
             },
             TestCase {
                 rec: r#"{"f1": "Português do Brasil,Català,Deutsch,Español,Français,Bahasa,Italiano,עִבְרִית,日本語,한국어,Română,中文（简体）,中文（繁體）,Українська,Ўзбекча,Türkçe"}"#,
-                want: vec![Some(r#""Português do Brasil,Català,Deutsch,Español,Français,Bahasa,Italiano,עִבְרִית,日本語,한국어,Română,中文（简体）,中文（繁體）,Українська,Ўзбекча,Türkçe""#.as_bytes()), None, None, None, None, None, None],
+                want: Ok(vec![Some(r#""Português do Brasil,Català,Deutsch,Español,Français,Bahasa,Italiano,עִבְרִית,日本語,한국어,Română,中文（简体）,中文（繁體）,Українська,Ўзбекча,Türkçe""#.as_bytes()), None, None, None, None, None, None]),
             },
             TestCase {
                 rec: r#"{"f1": "\"f1\": \\"}"#,
-                want: vec![Some(r#""\"f1\": \\""#.as_bytes()), None, None, None, None, None, None],
+                want: Ok(vec![Some(r#""\"f1\": \\""#.as_bytes()), None, None, None, None, None, None]),
             },
             TestCase {
                 rec: r#"
@@ -265,12 +269,12 @@ mod tests {
                      	"f1" 	 : 	 "b"
                     }
                 "#,
-                want: vec![Some(r#""b""#.as_bytes()), None, None, None, None, None, None],
+                want: Ok(vec![Some(r#""b""#.as_bytes()), None, None, None, None, None, None]),
             },
             // for issue #10
             TestCase {
                 rec: r#""#,
-                want: vec![None, None, None, None, None],
+                want: Err(ParseError::UnexpectedEof),
             },
 
         ];
@@ -292,57 +296,57 @@ mod tests {
         let mut p = Pikkr::new(&queries, 1);
         struct TestCase<'a> {
             rec: &'a str,
-            want: Vec<Option<&'a[u8]>>,
+            want: ParseResult<Vec<Option<&'a[u8]>>>,
         }
         let test_cases = vec![
             TestCase {
                 rec: r#"{"f0": "a", "f1": "b", "f2": {"f1": 1, "f2": {"f1": "c", "f2": "d"}}, "f3": [1, 2, 3]}"#,
-                want: vec![
+                want: Ok(vec![
                     Some(r#""b""#.as_bytes()),
                     Some(r#"{"f1": 1, "f2": {"f1": "c", "f2": "d"}}"#.as_bytes()),
                     Some(r#"1"#.as_bytes()),
                     Some(r#""c""#.as_bytes()),
                     Some(r#"[1, 2, 3]"#.as_bytes()),
-                ]
+                ])
             },
             TestCase {
                 rec: r#"{"f0": "a", "f1": "b", "f2": {"f1": 1, "f2": {"f1": "c", "f2": "d"}}, "f3": [1, 2, 3]}"#,
-                want: vec![
+                want: Ok(vec![
                     Some(r#""b""#.as_bytes()),
                     Some(r#"{"f1": 1, "f2": {"f1": "c", "f2": "d"}}"#.as_bytes()),
                     Some(r#"1"#.as_bytes()),
                     Some(r#""c""#.as_bytes()),
                     Some(r#"[1, 2, 3]"#.as_bytes()),
-                ]
+                ]),
             },
             TestCase {
                 rec: r#"{"f1": "b", "f0": "a", "f3": [1, 2, 3], "f2": {"f2": {"f2": "d", "f1": "c"}, "f1": 1}}"#,
-                want: vec![
+                want: Ok(vec![
                     Some(r#""b""#.as_bytes()),
                     Some(r#"{"f2": {"f2": "d", "f1": "c"}, "f1": 1}"#.as_bytes()),
                     Some(r#"1"#.as_bytes()),
                     Some(r#""c""#.as_bytes()),
                     Some(r#"[1, 2, 3]"#.as_bytes()),
-                ]
+                ]),
             },
             TestCase {
                 rec: r#"{"f0": "a", "f1": "b", "f2": {"f1": 1, "f2": {"f1": "c", "f2": "d"}}}"#,
-                want: vec![
+                want: Ok(vec![
                     Some(r#""b""#.as_bytes()),
                     Some(r#"{"f1": 1, "f2": {"f1": "c", "f2": "d"}}"#.as_bytes()),
                     Some(r#"1"#.as_bytes()),
                     Some(r#""c""#.as_bytes()),
                     None,
-                ]
+                ]),
             },
             TestCase {
                 rec: r#"{}"#,
-                want: vec![None, None, None, None, None],
+                want: Ok(vec![None, None, None, None, None]),
             },
             // for issue #10
             TestCase {
                 rec: r#""#,
-                want: vec![None, None, None, None, None],
+                want: Err(ParseError::UnexpectedEof),
             },
         ];
         for t in test_cases {

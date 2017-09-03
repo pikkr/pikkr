@@ -8,7 +8,9 @@ mod index_builder;
 mod parser;
 mod pikkr;
 mod query;
+mod result;
 mod stat;
 mod utf8;
 
+pub use result::{ParseError, ParseResult};
 pub use pikkr::Pikkr;
