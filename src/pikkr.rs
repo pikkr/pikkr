@@ -266,7 +266,13 @@ mod tests {
                     }
                 "#,
                 want: vec![Some(r#""b""#.as_bytes()), None, None, None, None, None, None],
-            }
+            },
+            // for issue #10
+            TestCase {
+                rec: r#""#,
+                want: vec![None, None, None, None, None],
+            },
+
         ];
         for t in test_cases {
             let got = p.parse(t.rec.as_bytes());
@@ -332,7 +338,12 @@ mod tests {
             TestCase {
                 rec: r#"{}"#,
                 want: vec![None, None, None, None, None],
-            }
+            },
+            // for issue #10
+            TestCase {
+                rec: r#""#,
+                want: vec![None, None, None, None, None],
+            },
         ];
         for t in test_cases {
             let got = p.parse(t.rec.as_bytes());
