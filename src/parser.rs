@@ -4,7 +4,7 @@ use super::utf8::{BACKSLASH, COMMA, CR, HT, LF, QUOTE, SPACE, RIGHT_BRACE};
 use fnv::{FnvHashMap, FnvHashSet};
 
 #[inline]
-pub fn basic_parse(rec: &[u8], index: &Vec<Vec<u64>>, queries: &mut FnvHashMap<&[u8], Query>, start: usize, end: usize, level: usize, query_num: usize) {
+pub fn basic_parse<'a>(rec: &'a[u8], index: &Vec<Vec<u64>>, queries: &mut FnvHashMap<&[u8], Query>, start: usize, end: usize, level: usize, query_num: usize, stats: &mut Vec<FnvHashSet<usize>>, set_stats: bool, results: &mut Vec<Option<&'a[u8]>>) {
     let mut found_num = 0;
     let cp = generate_colon_positions(index, start, end, level);
     let mut vei = end;
@@ -13,10 +13,15 @@ pub fn basic_parse(rec: &[u8], index: &Vec<Vec<u64>>, queries: &mut FnvHashMap<&
         let field = rec.get(fsi+1..fei).unwrap();
         if let Some(query) = queries.get_mut(field) {
             let (vsi, vei) = search_post_value_indices(rec, cp[i]+1, vei, i == cp.len()-1);
-            query.result = Some((vsi, vei+1, i));
             found_num += 1;
+            if set_stats {
+                stats[query.i].insert(i);
+            }
             if let Some(ref mut children) = query.children {
-                basic_parse(rec, index, children, vsi, vei, level+1, query.children_len);
+                basic_parse(rec, index, children, vsi, vei, level+1, query.children_len, stats, set_stats, results);
+            }
+            if query.target {
+                results[query.ri] = Some(rec.get(vsi..vei+1).unwrap());
             }
             if found_num == query_num {
                 return;
@@ -27,7 +32,7 @@ pub fn basic_parse(rec: &[u8], index: &Vec<Vec<u64>>, queries: &mut FnvHashMap<&
 }
 
 #[inline]
-pub fn speculative_parse(rec: &[u8], index: &Vec<Vec<u64>>, queries: &mut FnvHashMap<&[u8], Query>, start: usize, end: usize, level: usize, stats: &Vec<FnvHashSet<usize>>) -> bool {
+pub fn speculative_parse<'a>(rec: &'a[u8], index: &Vec<Vec<u64>>, queries: &mut FnvHashMap<&[u8], Query>, start: usize, end: usize, level: usize, stats: &Vec<FnvHashSet<usize>>, results: &mut Vec<Option<&'a[u8]>>) -> bool {
     let cp = generate_colon_positions(index, start, end, level);
     for (s, q) in queries.iter_mut() {
         let mut found = false;
@@ -45,11 +50,13 @@ pub fn speculative_parse(rec: &[u8], index: &Vec<Vec<u64>>, queries: &mut FnvHas
                     end
                 };
                 let (vsi, vei) = search_post_value_indices(rec, cp[*i]+1, vei, *i == cp.len()-1);
-                q.result = Some((vsi, vei+1, *i));
                 if let Some(ref mut children) = q.children {
-                    found = speculative_parse(rec, index, children, vsi, vei, level+1, stats);
+                    found = speculative_parse(rec, index, children, vsi, vei, level+1, stats, results);
                 } else {
                     found = true;
+                }
+                if q.target {
+                    results[q.ri] = Some(rec.get(vsi..vei+1).unwrap());
                 }
                 break;
             }
@@ -167,13 +174,15 @@ mod tests {
         let mut children = FnvHashMap::default();
         children.insert("d1".as_bytes(), Query {
             i: 0,
-            result: None,
+            ri: 0,
+            target: true,
             children: None,
             children_len: 0,
         });
         children.insert("d3".as_bytes(), Query {
             i: 1,
-            result: None,
+            ri: 1,
+            target: true,
             children: None,
             children_len: 0,
         });
@@ -181,67 +190,69 @@ mod tests {
         let mut queries = FnvHashMap::default();
         queries.insert("aaa".as_bytes(), Query {
             i: 2,
-            result: None,
+            ri: 2,
+            target: true,
             children: None,
             children_len: 0,
         });
         queries.insert("bbb".as_bytes(), Query {
             i: 3,
-            result: None,
+            ri: 3,
+            target: true,
             children: None,
             children_len: 0,
         });
         queries.insert("ccc".as_bytes(), Query {
             i: 4,
-            result: None,
+            ri: 4,
+            target: true,
             children: None,
             children_len: 0,
         });
         queries.insert("ddd".as_bytes(), Query {
             i: 5,
-            result: None,
+            ri: 0,
+            target: false,
             children: Some(children),
             children_len: children_len,
         });
         queries.insert("eee".as_bytes(), Query {
             i: 6,
-            result: None,
+            ri: 5,
+            target: true,
             children: None,
             children_len: 0,
         });
 
         let queries_len = queries.len();
 
-        basic_parse(json_rec, &index, &mut queries, 0, json_rec.len()-1, 0, queries_len);
+        let mut stats = vec![
+            FnvHashSet::default(),
+            FnvHashSet::default(),
+            FnvHashSet::default(),
+            FnvHashSet::default(),
+            FnvHashSet::default(),
+            FnvHashSet::default(),
+            FnvHashSet::default()
+        ];
 
-        assert_eq!(Some((10, 15, 0)), queries.get("aaa".as_bytes()).unwrap().result);
-        assert_eq!(Some((25, 28, 1)), queries.get("bbb".as_bytes()).unwrap().result);
-        assert_eq!(Some((37, 49, 2)), queries.get("ccc".as_bytes()).unwrap().result);
-        assert_eq!(Some((59, 98, 3)), queries.get("ddd".as_bytes()).unwrap().result);
-        match queries.get("ddd".as_bytes()) {
-            Some(ref query) => {
-                match query.children {
-                    Some(ref children) => {
-                        match children.get("d1".as_bytes()) {
-                            Some(ref child_query) => {
-                                assert_eq!(Some((68, 72, 0)), child_query.result);
-                            },
-                            _ => (),
-                        }
-                        match children.get("d3".as_bytes()) {
-                            Some(ref child_query) => {
-                                assert_eq!(Some((93, 96, 2)), child_query.result);
-                            },
-                            _ => (),
-                        }
+        let mut results = vec![
+            None,
+            None,
+            None,
+            None,
+            None,
+            None
+        ];
 
-                    },
-                    _ => (),
-                }
-            },
-            _ => (),
-        }
-        assert_eq!(Some((107, 122, 4)), queries.get("eee".as_bytes()).unwrap().result);
+        basic_parse(json_rec, &index, &mut queries, 0, json_rec.len()-1, 0, queries_len, &mut stats, true, &mut results);
+
+        assert_eq!(Some(r#""D1""#.as_bytes()), results[0]);
+        assert_eq!(Some(r#"333"#.as_bytes()), results[1]);
+        assert_eq!(Some(r#""AAA""#.as_bytes()), results[2]);
+        assert_eq!(Some(r#"111"#.as_bytes()), results[3]);
+        assert_eq!(Some(r#"["C1", "C2"]"#.as_bytes()), results[4]);
+        assert_eq!(Some(r#"{ "e1": "EEE" }"#.as_bytes()), results[5]);
     }
 
     #[test]
