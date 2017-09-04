@@ -65,7 +65,10 @@ fn main() {
     ];
     let train_num = 2; // Number of records used as training data
                        // before Pikkr starts speculative parsing.
-    let mut p = pikkr::Pikkr::new(&queries, train_num);
+    let mut p = match pikkr::Pikkr::new(&queries, train_num) {
+        Ok(p) => p,
+        Err(err) => panic!("There was a problem creating a JSON parser: {:?}", err.kind()),
+    };
     let recs = vec![
         r#"{"f1": "a", "f2": {"f1": 1, "f2": true}}"#,
         r#"{"f1": "b", "f2": {"f1": 2, "f2": true}}"#,
@@ -85,7 +88,7 @@ fn main() {
                 }
                 println!();
             },
-            Err(_) => println!("There was a problem parsing a record"),
+            Err(err) => println!("There was a problem parsing a record: {:?}", err.kind()),
         }
     }
     /*

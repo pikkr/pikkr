@@ -4,6 +4,7 @@ extern crate x86intrin;
 
 mod avx;
 mod bit;
+mod error;
 mod index_builder;
 mod parser;
 mod pikkr;
@@ -12,5 +13,6 @@ mod result;
 mod stat;
 mod utf8;
 
-pub use result::{ParseError, ParseResult};
+pub use error::{Error, ErrorKind};
 pub use pikkr::Pikkr;
+pub use result::Result;

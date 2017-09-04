@@ -1,8 +1,5 @@
-/// The error type represents all possible errors that occurs when parsing JSON string
-#[derive(Debug, PartialEq)]
-pub enum ParseError {
-    UnexpectedEof,
-}
+use super::error;
+use std::result;
 
-/// The type alias for `Result`, with the error type `ParseError`
-pub type ParseResult<T> = Result<T, ParseError>;
+/// A specialized Result type for parsing a JSON record.
+pub type Result<T> = result::Result<T, error::Error>;

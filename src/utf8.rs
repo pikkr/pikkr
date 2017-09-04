@@ -2,6 +2,7 @@ pub const BACKSLASH: u8 = 0x5c;
 pub const COLON: u8 = 0x3a;
 pub const COMMA: u8 = 0x2c;
 pub const CR: u8 = 0x0d;
+pub const DOLLAR: u8 = 0x24;
 pub const DOT: u8 = 0x2e;
 pub const HT: u8 = 0x09;
 pub const LEFT_BRACE: u8 = 0x7b;
