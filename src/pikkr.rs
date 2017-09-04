@@ -20,7 +20,6 @@ pub struct Pikkr<'a> {
     left_brace: m256i,
     right_brace: m256i,
 
-    query_strs: &'a Vec<&'a[u8]>,
     query_strs_len: usize,
     queries: FnvHashMap<&'a[u8], Query<'a>>,
     queries_len: usize,
@@ -48,7 +47,6 @@ impl<'a> Pikkr<'a> {
             left_brace: avx::mm256i(LEFT_BRACE as i8),
             right_brace: avx::mm256i(RIGHT_BRACE as i8),
 
-            query_strs: query_strs,
             query_strs_len: query_strs.len(),
             queries: FnvHashMap::default(),
             queries_len: 0,
@@ -62,8 +60,8 @@ impl<'a> Pikkr<'a> {
         };
 
         let mut qi = 0;
-        for query_str in query_strs {
-            let (level, next_qi) = set_queries(&mut p.queries, query_str, ROOT_QUERY_STR_OFFSET, qi);
+        for (ri, query_str) in query_strs.iter().enumerate() {
+            let (level, next_qi) = set_queries(&mut p.queries, query_str, ROOT_QUERY_STR_OFFSET, qi, ri);
             p.level = cmp::max(p.level, level);
             qi = next_qi;
         }
@@ -113,24 +111,21 @@ impl<'a> Pikkr<'a> {
         let mut index = Vec::with_capacity(self.level);
         index_builder::build_leveled_colon_bitmap(&b_colon, &b_left, &b_right, self.level, &mut index);
 
-        clear_query_results(&mut self.queries);
+        let mut results = Vec::with_capacity(self.query_strs_len);
+        for _ in 0..self.query_strs_len {
+            results.push(None);
+        }
 
         if self.trained {
-            if !parser::speculative_parse(rec, &index, &mut self.queries, 0, rec_len-1, 0, &self.stats) {
-                parser::basic_parse(rec, &index, &mut self.queries, 0, rec_len-1, 0, self.queries_len);
+            if !parser::speculative_parse(rec, &index, &mut self.queries, 0, rec_len-1, 0, &self.stats, &mut results) {
+                parser::basic_parse(rec, &index, &mut self.queries, 0, rec_len-1, 0, self.queries_len, &mut self.stats, false, &mut results);
             }
         } else {
-            parser::basic_parse(rec, &index, &mut self.queries, 0, rec_len-1, 0, self.queries_len);
-            set_stats(&self.queries, &mut self.stats);
+            parser::basic_parse(rec, &index, &mut self.queries, 0, rec_len-1, 0, self.queries_len, &mut self.stats, true, &mut results);
             self.trained_num += 1;
             if self.trained_num >= self.train_num {
                 self.trained = true;
             }
-        }
-
-        let mut results = Vec::with_capacity(self.query_strs_len);
-        for query_str in self.query_strs {
-            set_result(rec, &self.queries, query_str, &mut results, ROOT_QUERY_STR_OFFSET);
         }
 
         Ok(results)
@@ -172,18 +167,19 @@ impl<'a> Pikkr<'a> {
  }
 
 #[inline]
-fn set_queries<'a>(queries: &mut FnvHashMap<&'a[u8], Query<'a>>, s: &'a[u8], i: usize, qi: usize) -> (usize, usize) {
+fn set_queries<'a>(queries: &mut FnvHashMap<&'a[u8], Query<'a>>, s: &'a[u8], i: usize, qi: usize, ri: usize) -> (usize, usize) {
     for j in i..s.len() {
         if s[j] == DOT {
             let t = s.get(i..j).unwrap();
             let query = queries.entry(t).or_insert(Query {
                 i: qi,
-                result: None,
+                ri: ri,
+                target: false,
                 children: None,
                 children_len: 0,
             });
             let mut children = query.children.get_or_insert(FnvHashMap::default());
-            let (child_level, next_qi)  = set_queries(&mut children, s, j+1, if qi == query.i { qi + 1 } else { qi });
+            let (child_level, next_qi)  = set_queries(&mut children, s, j+1, if qi == query.i { qi + 1 } else { qi }, ri);
             query.children_len = children.len();
             return (child_level + 1, next_qi);
         }
@@ -192,66 +188,16 @@ fn set_queries<'a>(queries: &mut FnvHashMap<&'a[u8], Query<'a>>, s: &'a[u8], i: 
     if !queries.contains_key(t) {
         queries.insert(t, Query {
             i: qi,
-            result: None,
+            ri: ri,
+            target: true,
             children: None,
             children_len: 0,
         });
         return (1, qi + 1);
+    } else {
+        queries.get_mut(t).unwrap().target = true;
     }
     (1, qi)
-}
-
-#[inline]
-fn clear_query_results(queries: &mut FnvHashMap<&[u8], Query>) {
-    for (_, q) in queries.iter_mut() {
-        q.result = None;
-        if let Some(ref mut children) = q.children {
-            clear_query_results(children);
-        }
-    }
-}
-
-#[inline]
-fn set_stats<'a>(queries: &FnvHashMap<&'a[u8], Query<'a>>, stats: &mut Vec<FnvHashSet<usize>>) {
-    for (_, q) in queries.iter() {
-        if let Some(result) = q.result {
-            stats[q.i].insert(result.2);
-            if let Some(ref children) = q.children {
-                set_stats(&children, stats);
-            }
-        }
-    }
-}
-
-#[inline]
-fn set_result<'a>(rec: &'a[u8], queries: &FnvHashMap<&[u8], Query>, s: &[u8], d: &mut Vec<Option<&'a[u8]>>, i: usize) {
-    for j in i..s.len() {
-        if s[j] == DOT {
-            let t = s.get(i..j).unwrap();
-            match queries.get(t) {
-                Some(query) => {
-                    match query.children {
-                        Some(ref children) => set_result(rec, children, s, d, j+1),
-                        _ => d.push(None)
-                    }
-                },
-                _ => d.push(None)
-            }
-            return;
-        }
-    }
-    let t = s.get(i..s.len()).unwrap();
-    d.push(match queries.get(t) {
-        Some(query) => {
-            match query.result {
-                Some(result) => {
-                    Some(rec.get(result.0..result.1).unwrap())
-                },
-                _ => None,
-            }
-        },
-        _ => None,
-    });
 }
 
 #[cfg(test)]
