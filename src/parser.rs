@@ -1,12 +1,11 @@
 use super::bit;
-use super::stat::Stat;
 use super::query::Query;
 use super::utf8::{BACKSLASH, COMMA, CR, HT, LF, QUOTE, SPACE, RIGHT_BRACE};
-use fnv::FnvHashMap;
+use fnv::{FnvHashMap, FnvHashSet};
 
 #[inline]
-pub fn basic_parse(rec: &[u8], index: &Vec<Vec<u64>>, queries: &mut FnvHashMap<&[u8], Query>, start: usize, end: usize, level: usize, query_num: usize, found_num: usize) -> usize {
-    let mut found_num = found_num;
+pub fn basic_parse(rec: &[u8], index: &Vec<Vec<u64>>, queries: &mut FnvHashMap<&[u8], Query>, start: usize, end: usize, level: usize, query_num: usize) {
+    let mut found_num = 0;
     let cp = generate_colon_positions(index, start, end, level);
     let mut vei = end;
     for i in (0..cp.len()).rev() {
@@ -17,47 +16,42 @@ pub fn basic_parse(rec: &[u8], index: &Vec<Vec<u64>>, queries: &mut FnvHashMap<&
             query.result = Some((vsi, vei+1, i));
             found_num += 1;
             if let Some(ref mut children) = query.children {
-                found_num = basic_parse(rec, index, children, vsi, vei, level+1, query_num, found_num);
+                basic_parse(rec, index, children, vsi, vei, level+1, query.children_len);
             }
             if found_num == query_num {
-                return found_num;
+                return;
             }
         }
         vei = fsi - 1;
     }
-    return found_num;
 }
 
 #[inline]
-pub fn speculative_parse(rec: &[u8], index: &Vec<Vec<u64>>, queries: &mut FnvHashMap<&[u8], Query>, start: usize, end: usize, level: usize, stats: &FnvHashMap<&[u8], Stat>) -> bool {
+pub fn speculative_parse(rec: &[u8], index: &Vec<Vec<u64>>, queries: &mut FnvHashMap<&[u8], Query>, start: usize, end: usize, level: usize, stats: &Vec<FnvHashSet<usize>>) -> bool {
     let cp = generate_colon_positions(index, start, end, level);
     for (s, q) in queries.iter_mut() {
         let mut found = false;
-        if let Some(ref st) = stats.get(s) {
-            for i in &st.locs {
-                if *i >= cp.len() {
-                    continue;
+        for i in &stats[q.i] {
+            if *i >= cp.len() {
+                continue;
+            }
+            let (fsi, fei) = search_pre_field_indices(rec, cp[*i]);
+            let field = rec.get(fsi+1..fei).unwrap();
+            if s == &field {
+                let vei = if *i < cp.len()-1 {
+                    let (nfsi, _) = search_pre_field_indices(rec, cp[*i+1]);
+                    nfsi - 1
+                } else {
+                    end
+                };
+                let (vsi, vei) = search_post_value_indices(rec, cp[*i]+1, vei, *i == cp.len()-1);
+                q.result = Some((vsi, vei+1, *i));
+                if let Some(ref mut children) = q.children {
+                    found = speculative_parse(rec, index, children, vsi, vei, level+1, stats);
+                } else {
+                    found = true;
                 }
-                let (fsi, fei) = search_pre_field_indices(rec, cp[*i]);
-                let field = rec.get(fsi+1..fei).unwrap();
-                if s == &field {
-                    let vei = if *i < cp.len()-1 {
-                        let (nfsi, _) = search_pre_field_indices(rec, cp[*i+1]);
-                        nfsi - 1
-                    } else {
-                        end
-                    };
-                    let (vsi, vei) = search_post_value_indices(rec, cp[*i]+1, vei, *i == cp.len()-1);
-                    q.result = Some((vsi, vei+1, *i));
-                    if let Some(ref mut children) = q.children {
-                        if let Some(ref st_children) = st.children {
-                            found = speculative_parse(rec, index, children, vsi, vei, level+1, st_children);
-                        }
-                    } else {
-                        found = true;
-                    }
-                    break;
-                }
+                break;
             }
         }
         if !found {
@@ -172,36 +166,53 @@ mod tests {
         index_builder::build_leveled_colon_bitmap(&b_colon, &b_left, &b_right, l, &mut index);
         let mut children = FnvHashMap::default();
         children.insert("d1".as_bytes(), Query {
+            i: 0,
             result: None,
             children: None,
+            children_len: 0,
         });
         children.insert("d3".as_bytes(), Query {
+            i: 1,
             result: None,
             children: None,
+            children_len: 0,
         });
+        let children_len = children.len();
         let mut queries = FnvHashMap::default();
         queries.insert("aaa".as_bytes(), Query {
+            i: 2,
             result: None,
             children: None,
+            children_len: 0,
         });
         queries.insert("bbb".as_bytes(), Query {
+            i: 3,
             result: None,
             children: None,
+            children_len: 0,
         });
         queries.insert("ccc".as_bytes(), Query {
+            i: 4,
             result: None,
             children: None,
+            children_len: 0,
         });
         queries.insert("ddd".as_bytes(), Query {
+            i: 5,
             result: None,
             children: Some(children),
+            children_len: children_len,
         });
         queries.insert("eee".as_bytes(), Query {
+            i: 6,
             result: None,
             children: None,
+            children_len: 0,
         });
 
-        basic_parse(json_rec, &index, &mut queries, 0, json_rec.len()-1, 0, 7, 0);
+        let queries_len = queries.len();
+
+        basic_parse(json_rec, &index, &mut queries, 0, json_rec.len()-1, 0, queries_len);
 
         assert_eq!(Some((10, 15, 0)), queries.get("aaa".as_bytes()).unwrap().result);
         assert_eq!(Some((25, 28, 1)), queries.get("bbb".as_bytes()).unwrap().result);

@@ -10,7 +10,6 @@ mod parser;
 mod pikkr;
 mod query;
 mod result;
-mod stat;
 mod utf8;
 
 pub use error::{Error, ErrorKind};
