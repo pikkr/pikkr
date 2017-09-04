@@ -1,11 +1,12 @@
 use super::avx;
 use super::bit;
+use super::error::{Error, ErrorKind};
 use super::index_builder;
 use super::parser;
-use super::result::{ParseError, ParseResult};
 use super::query::Query;
+use super::result::Result;
 use super::stat::Stat;
-use super::utf8::{BACKSLASH, COLON, DOT, LEFT_BRACE, QUOTE, RIGHT_BRACE};
+use super::utf8::{BACKSLASH, COLON, DOLLAR, DOT, LEFT_BRACE, QUOTE, RIGHT_BRACE};
 use std::cmp;
 use fnv::{FnvHashMap, FnvHashSet};
 use x86intrin::m256i;
@@ -36,7 +37,11 @@ pub struct Pikkr<'a> {
 impl<'a> Pikkr<'a> {
     /// Creates a JSON parser and returns it.
     #[inline]
-    pub fn new(query_strs: &'a Vec<&'a[u8]>, train_num: usize) -> Pikkr<'a> {
+    pub fn new(query_strs: &'a Vec<&'a[u8]>, train_num: usize) -> Result<Pikkr<'a>> {
+        if !is_valid_query_strs(query_strs) {
+            return Err(Error::from(ErrorKind::InvalidQuery));
+        }
+
         let mut p = Pikkr {
             backslash: avx::mm256i(BACKSLASH as i8),
             quote: avx::mm256i(QUOTE as i8),
@@ -65,15 +70,15 @@ impl<'a> Pikkr<'a> {
         }
         p.level = level;
 
-        p
+        Ok(p)
     }
 
     /// Parses a JSON record and returns the result.
     #[inline]
-    pub fn parse<'b>(&mut self, rec: &'b[u8]) -> ParseResult<Vec<Option<&'b[u8]>>> {
+    pub fn parse<'b>(&mut self, rec: &'b[u8]) -> Result<Vec<Option<&'b[u8]>>> {
         let rec_len = rec.len();
         if rec_len == 0 {
-            return Err(ParseError::UnexpectedEof);
+            return Err(Error::from(ErrorKind::InvalidRecord));
         }
 
         let rec_m256i_len = (rec_len + 31) / 32;
@@ -127,6 +132,40 @@ impl<'a> Pikkr<'a> {
         Ok(results)
     }
 }
+
+ #[inline]
+ fn is_valid_query_strs<'a>(query_strs: &'a Vec<&'a[u8]>) -> bool {
+     for query_str in query_strs {
+         if !is_valid_query_str(query_str) {
+             return false;
+         }
+     }
+     true
+ }
+
+ #[inline]
+ fn is_valid_query_str<'a>(query_str: &'a[u8]) -> bool {
+     if query_str.len() < ROOT_QUERY_STR_OFFSET + 1 {
+         return false;
+     }
+     if query_str[0] != DOLLAR || query_str[1] != DOT {
+         return false;
+     }
+     let mut s = ROOT_QUERY_STR_OFFSET-1;
+     for i in s+1..query_str.len() {
+         if query_str[i] != DOT {
+             continue;
+         }
+         if i == s+1 {
+             return false;
+         }
+         if i == query_str.len()-1 {
+             return false;
+         }
+         s = i;
+     }
+     true
+ }
 
 #[inline]
 fn set_queries<'a>(queries: &mut FnvHashMap<&'a[u8], Query<'a>>, s: &'a[u8], i: usize) -> usize {
@@ -215,6 +254,59 @@ mod tests {
     use super::*;
 
     #[test]
+    fn test_pikkr_new() {
+        struct TestCase<'a> {
+            query_strs: Vec<&'a[u8]>,
+            err: bool,
+        }
+        let test_cases = vec![
+            TestCase {
+                query_strs: vec![],
+                err: false,
+            },
+            TestCase {
+                query_strs: vec!["".as_bytes()],
+                err: true,
+            },
+            TestCase {
+                query_strs: vec!["$".as_bytes()],
+                err: true,
+            },
+            TestCase {
+                query_strs: vec!["$.".as_bytes()],
+                err: true,
+            },
+            TestCase {
+                query_strs: vec!["$.aaaa".as_bytes()],
+                err: false,
+            },
+            TestCase {
+                query_strs: vec!["$.aaaa".as_bytes(), "".as_bytes()],
+                err: true,
+            },
+            TestCase {
+                query_strs: vec!["$.aaaa".as_bytes(), "$".as_bytes()],
+                err: true,
+            },
+            TestCase {
+                query_strs: vec!["$.aaaa".as_bytes(), "$.".as_bytes()],
+                err: true,
+            },
+            TestCase {
+                query_strs: vec!["$.aaaa".as_bytes(), "$.bbbb".as_bytes()],
+                err: false,
+            }
+        ];
+        for t in test_cases {
+            let err = match Pikkr::new(&t.query_strs, 1) {
+                Ok(_) => false,
+                Err(_) => true,
+            };
+            assert_eq!(t.err, err);
+        }
+    }
+
+    #[test]
     fn test_pikkr_basic_parse() {
         let queries = vec![
             "$.f1".as_bytes(),
@@ -225,10 +317,10 @@ mod tests {
             "$.f3".as_bytes(),
             "$.f4".as_bytes(),
         ];
-        let mut p = Pikkr::new(&queries, 1000000000);
+        let mut p = Pikkr::new(&queries, 1000000000).unwrap();
         struct TestCase<'a> {
             rec: &'a str,
-            want: ParseResult<Vec<Option<&'a[u8]>>>,
+            want: Result<Vec<Option<&'a[u8]>>>,
         }
         let test_cases = vec![
             TestCase {
@@ -274,7 +366,7 @@ mod tests {
             // for issue #10
             TestCase {
                 rec: r#""#,
-                want: Err(ParseError::UnexpectedEof),
+                want: Err(Error::from(ErrorKind::InvalidRecord)),
             },
 
         ];
@@ -293,10 +385,10 @@ mod tests {
             "$.f2.f2.f1".as_bytes(),
             "$.f3".as_bytes(),
         ];
-        let mut p = Pikkr::new(&queries, 1);
+        let mut p = Pikkr::new(&queries, 1).unwrap();
         struct TestCase<'a> {
             rec: &'a str,
-            want: ParseResult<Vec<Option<&'a[u8]>>>,
+            want: Result<Vec<Option<&'a[u8]>>>,
         }
         let test_cases = vec![
             TestCase {
@@ -346,11 +438,73 @@ mod tests {
             // for issue #10
             TestCase {
                 rec: r#""#,
-                want: Err(ParseError::UnexpectedEof),
+                want: Err(Error::from(ErrorKind::InvalidRecord)),
             },
         ];
         for t in test_cases {
             let got = p.parse(t.rec.as_bytes());
+            assert_eq!(t.want, got);
+        }
+    }
+
+    #[test]
+    fn test_is_valid_query_str() {
+        struct TestCase<'a> {
+            query_str: &'a str,
+            want: bool,
+        }
+        let test_cases = vec![
+            TestCase {
+                query_str: "",
+                want: false,
+            },
+            TestCase {
+                query_str: "$",
+                want: false,
+            },
+            TestCase {
+                query_str: "$.",
+                want: false,
+            },
+            TestCase {
+                query_str: "$..",
+                want: false,
+            },
+            TestCase {
+                query_str: "a.a",
+                want: false,
+            },
+            TestCase {
+                query_str: "$aa",
+                want: false,
+            },
+            TestCase {
+                query_str: "$.a",
+                want: true,
+            },
+            TestCase {
+                query_str: "$.aaaa",
+                want: true,
+            },
+            TestCase {
+                query_str: "$.aaaa.",
+                want: false,
+            },
+            TestCase {
+                query_str: "$.aaaa.b",
+                want: true,
+            },
+            TestCase {
+                query_str: "$.aaaa.bbbb",
+                want: true,
+            },
+            TestCase {
+                query_str: "$.aaaa.bbbb.",
+                want: false,
+            }
+        ];
+        for t in test_cases {
+            let got = is_valid_query_str(t.query_str.as_bytes());
             assert_eq!(t.want, got);
         }
     }
