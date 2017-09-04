@@ -41,7 +41,7 @@ Memory: 16 GB
 
 * [serde_json](https://crates.io/crates/serde_json) 1.0.2
 * [json](https://crates.io/crates/json) 0.11.9
-* [pikkr](https://crates.io/crates/pikkr) 0.5.0
+* [pikkr](https://crates.io/crates/pikkr) 0.8.0
 
 ### JSON Data
 
