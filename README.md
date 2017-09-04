@@ -75,15 +75,28 @@ fn main() {
         r#"{"f1": "e"}"#
     ];
     for rec in recs {
-        let results = p.parse(rec.as_bytes());
-        for result in results {
-            print!("{} ", match result {
-                Some(result) => String::from_utf8(result.to_vec()).unwrap(),
-                None => String::from("None"),
-            });
+        match p.parse(rec.as_bytes()) {
+            Ok(results) => {
+                for result in results {
+                    print!("{} ", match result {
+                        Some(result) => String::from_utf8(result.to_vec()).unwrap(),
+                        None => String::from("None"),
+                    });
+                }
+                println!();
+            },
+            Err(_) => println!("There was a problem parsing a record"),
         }
-        println!();
     }
+    /*
+    Output:
+        "a" 1
+        "b" 2
+        "c" 3
+        "d" 4
+        None 5
+        "e" None
+    */
 }
 ```
 
