@@ -2,17 +2,17 @@ use super::bit;
 use x86intrin::{m256i, mm256_cmpeq_epi8, mm256_movemask_epi8};
 
 #[inline]
-pub fn build_structural_character_bitmap(s: &Vec<m256i>, d: &mut Vec<u64>, m: m256i) {
+pub fn build_structural_character_bitmap(s: &Vec<m256i>, d: &mut Vec<u64>, m: &m256i) {
     let n = s.len();
     let mut i = 0;
     while i + 1 < n {
-        let i1 = mm256_movemask_epi8(mm256_cmpeq_epi8(s[i], m));
-        let i2 = mm256_movemask_epi8(mm256_cmpeq_epi8(s[i+1], m));
+        let i1 = mm256_movemask_epi8(mm256_cmpeq_epi8(s[i], *m));
+        let i2 = mm256_movemask_epi8(mm256_cmpeq_epi8(s[i+1], *m));
         d.push((i1 as u32 as u64) | ((i2 as u32 as u64) << 32));
         i += 2;
     }
     if n & 1 == 1 {
-        d.push(mm256_movemask_epi8(mm256_cmpeq_epi8(s[i], m)) as u32 as u64);
+        d.push(mm256_movemask_epi8(mm256_cmpeq_epi8(s[i], *m)) as u32 as u64);
     }
 }
 
@@ -506,7 +506,7 @@ mod tests {
         ];
         for t in test_cases {
             let mut d = Vec::with_capacity((t.s.len() + 1) / 2);
-            build_structural_character_bitmap(&t.s, &mut d, m);
+            build_structural_character_bitmap(&t.s, &mut d, &m);
             assert_eq!(t.d, d);
         }
     }
