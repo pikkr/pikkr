@@ -532,7 +532,7 @@ mod tests {
         ];
         for t in test_cases {
             let mut d = Vec::with_capacity((t.s.len() + 1) / 2);
-            build_structural_character_bitmap(&t.s, &mut d, &m);
+            build_structural_character_bitmap(&t.s, &mut d, &mut vec![], &mut vec![], &mut vec![], &mut vec![],  &m, &m, &m, &m, &m);
             assert_eq!(t.d, d);
         }
     }
