@@ -14,7 +14,7 @@ pub fn basic_parse<'a>(rec: &'a[u8], index: &Vec<Vec<u64>>, queries: &mut FnvHas
         if let Some(query) = queries.get_mut(field) {
             let (vsi, vei) = search_post_value_indices(rec, cp[i]+1, vei, i == cp.len()-1);
             found_num += 1;
-            if set_stats {
+            if set_stats && !stats[query.i].contains(&i) {
                 stats[query.i].insert(i);
             }
             if let Some(ref mut children) = query.children {
@@ -32,9 +32,9 @@ pub fn basic_parse<'a>(rec: &'a[u8], index: &Vec<Vec<u64>>, queries: &mut FnvHas
 }
 
 #[inline]
-pub fn speculative_parse<'a>(rec: &'a[u8], index: &Vec<Vec<u64>>, queries: &mut FnvHashMap<&[u8], Query>, start: usize, end: usize, level: usize, stats: &Vec<FnvHashSet<usize>>, results: &mut Vec<Option<&'a[u8]>>) -> bool {
+pub fn speculative_parse<'a>(rec: &'a[u8], index: &Vec<Vec<u64>>, queries: &FnvHashMap<&[u8], Query>, start: usize, end: usize, level: usize, stats: &Vec<FnvHashSet<usize>>, results: &mut Vec<Option<&'a[u8]>>) -> bool {
     let cp = generate_colon_positions(index, start, end, level);
-    for (s, q) in queries.iter_mut() {
+    for (s, q) in queries.iter() {
         let mut found = false;
         for i in &stats[q.i] {
             if *i >= cp.len() {
@@ -50,7 +50,7 @@ pub fn speculative_parse<'a>(rec: &'a[u8], index: &Vec<Vec<u64>>, queries: &mut 
                     end
                 };
                 let (vsi, vei) = search_post_value_indices(rec, cp[*i]+1, vei, *i == cp.len()-1);
-                if let Some(ref mut children) = q.children {
+                if let Some(ref children) = q.children {
                     found = speculative_parse(rec, index, children, vsi, vei, level+1, stats, results);
                 } else {
                     found = true;

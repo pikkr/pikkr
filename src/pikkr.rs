@@ -116,7 +116,7 @@ impl<'a> Pikkr<'a> {
         }
 
         if self.trained {
-            if !parser::speculative_parse(rec, &index, &mut self.queries, 0, rec_len-1, 0, &self.stats, &mut results) {
+            if !parser::speculative_parse(rec, &index, &self.queries, 0, rec_len-1, 0, &self.stats, &mut results) {
                 parser::basic_parse(rec, &index, &mut self.queries, 0, rec_len-1, 0, self.queries_len, &mut self.stats, false, &mut results);
             }
         } else {
