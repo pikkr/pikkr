@@ -75,7 +75,7 @@ fn generate_colon_positions(index: &Vec<Vec<u64>>, start: usize, end: usize, lev
         let mut m_colon = index[level][i];
         while m_colon != 0 {
             let m_bit = bit::e(m_colon);
-            let offset = i * 64 + (m_bit.wrapping_sub(1).count_ones() as usize);
+            let offset = i * 64 + (m_bit.trailing_zeros() as usize);
             if start <= offset && offset <= end {
                 c.push(offset);
             }
@@ -142,7 +142,6 @@ fn search_post_value_indices(rec: &[u8], si: usize, ei: usize, last_cp: bool) ->
 mod tests {
     use super::*;
     use super::super::avx;
-    use super::super::bit;
     use super::super::index_builder;
     use super::super::utf8::{BACKSLASH, COLON, LEFT_BRACE, QUOTE, RIGHT_BRACE};
 
@@ -161,9 +160,12 @@ mod tests {
         index_builder::build_structural_quote_bitmap(&b_backslash, &mut b_quote);
         index_builder::build_string_mask_bitmap(&mut b_quote);
         let b_string_mask= b_quote;
-        bit::and(&b_string_mask, &mut b_colon);
-        bit::and(&b_string_mask, &mut b_left);
-        bit::and(&b_string_mask, &mut b_right);
+        for i in 0..b_string_mask.len() {
+            let b = b_string_mask[i];
+            b_colon[i] &= b;
+            b_left[i] &= b;
+            b_right[i] &= b;
+        }
         let l = 10;
         let mut index = Vec::with_capacity(l);
         index_builder::build_leveled_colon_bitmap(&b_colon, &b_left, &b_right, l, &mut index);

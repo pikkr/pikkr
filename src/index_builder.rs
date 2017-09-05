@@ -44,11 +44,17 @@ pub fn build_structural_character_bitmap(s: &Vec<m256i>, b_backslash: &mut Vec<u
 
 #[inline]
 pub fn build_structural_quote_bitmap(b_backslash: &Vec<u64>, b_quote: &mut Vec<u64>) {
-    let mut b_unstructural_quote= Vec::with_capacity(b_quote.len());
-    let mut b_backslash_quote = b_quote.clone();
-    bit::shift_right_by_one(&mut b_backslash_quote);
-    bit::and(&b_backslash, &mut b_backslash_quote);
-    for i in 0..b_backslash_quote.len() {
+    let n = b_quote.len();
+    if n < 1 {
+        return;
+    }
+    let mut b_unstructural_quote= Vec::with_capacity(n);
+    let mut b_backslash_quote= Vec::with_capacity(n);
+    for i in 0..n-1 {
+        b_backslash_quote.push(((b_quote[i] >> 1) | b_quote[i+1] << 63) & b_backslash[i]);
+    }
+    b_backslash_quote.push((b_quote[n-1] >> 1) & b_backslash[n-1]);
+    for i in 0..n {
         let mut unstructural_quote = 0u64;
         let mut backslash_quote = b_backslash_quote[i];
         while backslash_quote != 0 {
@@ -80,8 +86,10 @@ pub fn build_structural_quote_bitmap(b_backslash: &Vec<u64>, b_quote: &mut Vec<u
         }
         b_unstructural_quote.push(!unstructural_quote);
     }
-    bit::shift_left_by_one(&mut b_unstructural_quote);
-    bit::and(&b_unstructural_quote, b_quote);
+    b_quote[0] &= b_unstructural_quote[0] << 1;
+    for i in 1..n {
+        b_quote[i] &= (b_unstructural_quote[i] << 1) | (b_unstructural_quote[i-1] >> 63);
+    }
 }
 
 #[inline]
@@ -109,6 +117,7 @@ pub fn build_leveled_colon_bitmap(b_colon: &Vec<u64>, b_left: &Vec<u64>, b_right
         b.push(b_colon.clone());
     }
     let mut s = Vec::new();
+    let mut s_len = 0;
     for i in 0..b_right.len() {
         let mut m_left = b_left[i];
         let mut m_right = b_right[i];
@@ -117,14 +126,16 @@ pub fn build_leveled_colon_bitmap(b_colon: &Vec<u64>, b_left: &Vec<u64>, b_right
             let mut m_leftbit = bit::e(m_left);
             while m_leftbit != 0 && (m_rightbit == 0 || m_leftbit < m_rightbit) {
                 s.push((i, m_leftbit));
+                s_len += 1;
                 m_left = bit::r(m_left);
                 m_leftbit = bit::e(m_left);
             }
             if m_rightbit != 0 {
                 let (j, mlb) = s.pop().unwrap();
+                s_len -= 1;
                 m_leftbit = mlb;
-                if s.len() > 0 {
-                    let upper_l = s.len() - 1;
+                if s_len > 0 {
+                    let upper_l = s_len - 1;
                     if upper_l < l {
                         if i == j {
                             b[upper_l][i] &= !(m_rightbit.wrapping_sub(m_leftbit));
