@@ -97,10 +97,10 @@ impl<'a> Pikkr<'a> {
 
         index_builder::build_structural_quote_bitmap(&b_backslash, &mut b_quote);
 
-        index_builder::build_string_mask_bitmap(&mut b_quote);
-        let b_string_mask = b_quote;
+        let mut b_string_mask = Vec::with_capacity(b_len);
+        index_builder::build_string_mask_bitmap(&b_quote, &mut b_string_mask);
 
-        for i in 0..b_string_mask.len() {
+        for i in 0..b_len {
             let b = b_string_mask[i];
             b_colon[i] &= b;
             b_left[i] &= b;
@@ -116,11 +116,11 @@ impl<'a> Pikkr<'a> {
         }
 
         if self.trained {
-            if !parser::speculative_parse(rec, &index, &self.queries, 0, rec_len-1, 0, &self.stats, &mut results) {
-                parser::basic_parse(rec, &index, &mut self.queries, 0, rec_len-1, 0, self.queries_len, &mut self.stats, false, &mut results);
+            if !parser::speculative_parse(rec, &index, &self.queries, 0, rec_len-1, 0, &self.stats, &mut results, &b_quote) {
+                parser::basic_parse(rec, &index, &mut self.queries, 0, rec_len-1, 0, self.queries_len, &mut self.stats, false, &mut results, &b_quote);
             }
         } else {
-            parser::basic_parse(rec, &index, &mut self.queries, 0, rec_len-1, 0, self.queries_len, &mut self.stats, true, &mut results);
+            parser::basic_parse(rec, &index, &mut self.queries, 0, rec_len-1, 0, self.queries_len, &mut self.stats, true, &mut results, &b_quote);
             self.trained_num += 1;
             if self.trained_num >= self.train_num {
                 self.trained = true;

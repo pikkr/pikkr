@@ -93,7 +93,7 @@ pub fn build_structural_quote_bitmap(b_backslash: &Vec<u64>, b_quote: &mut Vec<u
 }
 
 #[inline]
-pub fn build_string_mask_bitmap(b_quote: &mut Vec<u64>) {
+pub fn build_string_mask_bitmap(b_quote: &Vec<u64>, b_string_mask: &mut Vec<u64>) {
     let mut n = 0;
     for i in 0..b_quote.len() {
         let mut m_quote = b_quote[i];
@@ -107,7 +107,7 @@ pub fn build_string_mask_bitmap(b_quote: &mut Vec<u64>) {
         if n & 1 == 0 {
             m_string = !m_string;
         }
-        b_quote[i] = m_string;
+        b_string_mask.push(m_string);
     }
 }
 
@@ -1028,9 +1028,9 @@ mod tests {
             }
         ];
         for t in test_cases {
-            let mut b_quote = t.b_quote.clone();
-            build_string_mask_bitmap(&mut b_quote);
-            assert_eq!(t.want, b_quote);
+            let mut b_string_mask = Vec::with_capacity(t.b_quote.len());
+            build_string_mask_bitmap(&t.b_quote, &mut b_string_mask);
+            assert_eq!(t.want, b_string_mask);
         }
     }
 
