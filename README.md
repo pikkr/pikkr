@@ -37,6 +37,16 @@ L3 Cache: 4 MB
 Memory: 16 GB
 ```
 
+### Rust
+
+```bash
+$ cargo --version
+cargo 0.23.0-nightly (34c0674a2 2017-09-01)
+
+$ rustc --version
+rustc 1.22.0-nightly (088216fb9 2017-09-04)
+```
+
 ### Crates
 
 * [serde_json](https://crates.io/crates/serde_json) 1.0.3
@@ -107,7 +117,7 @@ fn main() {
 
 ```bash
 $ cargo --version
-cargo 0.22.0-nightly (3d3f2c05d 2017-08-27) # Make sure that nightly release is being used.
+cargo 0.23.0-nightly (34c0674a2 2017-09-01) # Make sure that nightly release is being used.
 $ RUSTFLAGS="-C target-cpu=native" cargo build --release
 ```
 
