@@ -89,15 +89,12 @@ impl<'a> Pikkr<'a> {
 
         let b_len = (rec_m256i_len + 1) / 2;
         let mut b_backslash = Vec::with_capacity(b_len);
-        index_builder::build_structural_character_bitmap(&rec_m256i, &mut b_backslash, self.backslash);
         let mut b_quote = Vec::with_capacity(b_len);
-        index_builder::build_structural_character_bitmap(&rec_m256i, &mut b_quote, self.quote);
         let mut b_colon = Vec::with_capacity(b_len);
-        index_builder::build_structural_character_bitmap(&rec_m256i, &mut b_colon, self.colon);
         let mut b_left = Vec::with_capacity(b_len);
-        index_builder::build_structural_character_bitmap(&rec_m256i, &mut b_left, self.left_brace);
         let mut b_right = Vec::with_capacity(b_len);
-        index_builder::build_structural_character_bitmap(&rec_m256i, &mut b_right, self.right_brace);
+
+        index_builder::build_structural_character_bitmap(&rec_m256i, &mut b_backslash, &mut b_quote, &mut b_colon, &mut b_left, &mut b_right, &self.backslash, &self.quote, &self.colon, &self.left_brace, &self.right_brace);
 
         index_builder::build_structural_quote_bitmap(&b_backslash, &mut b_quote);
 

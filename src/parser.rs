@@ -157,11 +157,7 @@ mod tests {
         let mut b_colon = Vec::with_capacity((s.len() + 1) / 2);
         let mut b_left = Vec::with_capacity((s.len() + 1) / 2);
         let mut b_right = Vec::with_capacity((s.len() + 1) / 2);
-        index_builder::build_structural_character_bitmap(&s, &mut b_backslash, avx::mm256i(BACKSLASH as i8));
-        index_builder::build_structural_character_bitmap(&s, &mut b_quote, avx::mm256i(QUOTE as i8));
-        index_builder::build_structural_character_bitmap(&s, &mut b_colon, avx::mm256i(COLON as i8));
-        index_builder::build_structural_character_bitmap(&s, &mut b_left, avx::mm256i(LEFT_BRACE as i8));
-        index_builder::build_structural_character_bitmap(&s, &mut b_right, avx::mm256i(RIGHT_BRACE as i8));
+        index_builder::build_structural_character_bitmap(&s, &mut b_backslash, &mut b_quote, &mut b_colon, &mut b_left, &mut b_right, &avx::mm256i(BACKSLASH as i8), &avx::mm256i(QUOTE as i8), &avx::mm256i(COLON as i8), &avx::mm256i(LEFT_BRACE as i8), &avx::mm256i(RIGHT_BRACE as i8));
         index_builder::build_structural_quote_bitmap(&b_backslash, &mut b_quote);
         index_builder::build_string_mask_bitmap(&mut b_quote);
         let b_string_mask= b_quote;
