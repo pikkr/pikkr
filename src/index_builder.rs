@@ -2,17 +2,43 @@ use super::bit;
 use x86intrin::{m256i, mm256_cmpeq_epi8, mm256_movemask_epi8};
 
 #[inline]
-pub fn build_structural_character_bitmap(s: &Vec<m256i>, d: &mut Vec<u64>, m: &m256i) {
+pub fn build_structural_character_bitmap(s: &Vec<m256i>, b_backslash: &mut Vec<u64>, b_quote: &mut Vec<u64>, b_colon: &mut Vec<u64>, b_left: &mut Vec<u64>, b_right: &mut Vec<u64> , m_backslash: &m256i, m_quote: &m256i, m_colon: &m256i, m_left: &m256i, m_right: &m256i) {
     let n = s.len();
     let mut i = 0;
     while i + 1 < n {
-        let i1 = mm256_movemask_epi8(mm256_cmpeq_epi8(s[i], *m));
-        let i2 = mm256_movemask_epi8(mm256_cmpeq_epi8(s[i+1], *m));
-        d.push((i1 as u32 as u64) | ((i2 as u32 as u64) << 32));
+        let s1 = s[i];
+        let s2 = s[i+1];
+
+        let i1 = mm256_movemask_epi8(mm256_cmpeq_epi8(s1, *m_backslash));
+        let i2 = mm256_movemask_epi8(mm256_cmpeq_epi8(s2, *m_backslash));
+        b_backslash.push((i1 as u32 as u64) | ((i2 as u32 as u64) << 32));
+
+        let i1 = mm256_movemask_epi8(mm256_cmpeq_epi8(s1, *m_quote));
+        let i2 = mm256_movemask_epi8(mm256_cmpeq_epi8(s2, *m_quote));
+        b_quote.push((i1 as u32 as u64) | ((i2 as u32 as u64) << 32));
+
+        let i1 = mm256_movemask_epi8(mm256_cmpeq_epi8(s1, *m_colon));
+        let i2 = mm256_movemask_epi8(mm256_cmpeq_epi8(s2, *m_colon));
+        b_colon.push((i1 as u32 as u64) | ((i2 as u32 as u64) << 32));
+
+        let i1 = mm256_movemask_epi8(mm256_cmpeq_epi8(s1, *m_left));
+        let i2 = mm256_movemask_epi8(mm256_cmpeq_epi8(s2, *m_left));
+        b_left.push((i1 as u32 as u64) | ((i2 as u32 as u64) << 32));
+
+        let i1 = mm256_movemask_epi8(mm256_cmpeq_epi8(s1, *m_right));
+        let i2 = mm256_movemask_epi8(mm256_cmpeq_epi8(s2, *m_right));
+        b_right.push((i1 as u32 as u64) | ((i2 as u32 as u64) << 32));
+
         i += 2;
     }
     if n & 1 == 1 {
-        d.push(mm256_movemask_epi8(mm256_cmpeq_epi8(s[i], *m)) as u32 as u64);
+        let s = s[i];
+
+        b_backslash.push(mm256_movemask_epi8(mm256_cmpeq_epi8(s, *m_backslash)) as u32 as u64);
+        b_quote.push(mm256_movemask_epi8(mm256_cmpeq_epi8(s, *m_quote)) as u32 as u64);
+        b_colon.push(mm256_movemask_epi8(mm256_cmpeq_epi8(s, *m_colon)) as u32 as u64);
+        b_left.push(mm256_movemask_epi8(mm256_cmpeq_epi8(s, *m_left)) as u32 as u64);
+        b_right.push(mm256_movemask_epi8(mm256_cmpeq_epi8(s, *m_right)) as u32 as u64);
     }
 }
 
