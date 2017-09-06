@@ -17,9 +17,7 @@ impl Error {
 impl From<ErrorKind> for Error {
     #[inline]
     fn from(kind: ErrorKind) -> Error {
-        Error {
-            kind: kind,
-        }
+        Error { kind: kind }
     }
 }
 

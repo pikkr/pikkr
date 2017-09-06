@@ -20,7 +20,7 @@ pub struct Pikkr<'a> {
     right_brace: m256i,
 
     query_strs_len: usize,
-    queries: FnvHashMap<&'a[u8], Query<'a>>,
+    queries: FnvHashMap<&'a [u8], Query<'a>>,
     queries_len: usize,
     level: usize,
 
@@ -34,7 +34,7 @@ pub struct Pikkr<'a> {
 impl<'a> Pikkr<'a> {
     /// Creates a JSON parser and returns it.
     #[inline]
-    pub fn new(query_strs: &'a Vec<&'a[u8]>, train_num: usize) -> Result<Pikkr<'a>> {
+    pub fn new(query_strs: &'a Vec<&'a [u8]>, train_num: usize) -> Result<Pikkr<'a>> {
         if !is_valid_query_strs(query_strs) {
             return Err(Error::from(ErrorKind::InvalidQuery));
         }
@@ -76,7 +76,7 @@ impl<'a> Pikkr<'a> {
 
     /// Parses a JSON record and returns the result.
     #[inline]
-    pub fn parse<'b>(&mut self, rec: &'b[u8]) -> Result<Vec<Option<&'b[u8]>>> {
+    pub fn parse<'b>(&mut self, rec: &'b [u8]) -> Result<Vec<Option<&'b [u8]>>> {
         let rec_len = rec.len();
         if rec_len == 0 {
             return Err(Error::from(ErrorKind::InvalidRecord));
@@ -93,7 +93,19 @@ impl<'a> Pikkr<'a> {
         let mut b_left = Vec::with_capacity(b_len);
         let mut b_right = Vec::with_capacity(b_len);
 
-        index_builder::build_structural_character_bitmap(&rec_m256i, &mut b_backslash, &mut b_quote, &mut b_colon, &mut b_left, &mut b_right, &self.backslash, &self.quote, &self.colon, &self.left_brace, &self.right_brace);
+        index_builder::build_structural_character_bitmap(
+            &rec_m256i,
+            &mut b_backslash,
+            &mut b_quote,
+            &mut b_colon,
+            &mut b_left,
+            &mut b_right,
+            &self.backslash,
+            &self.quote,
+            &self.colon,
+            &self.left_brace,
+            &self.right_brace,
+        );
 
         index_builder::build_structural_quote_bitmap(&b_backslash, &mut b_quote);
 
@@ -116,11 +128,45 @@ impl<'a> Pikkr<'a> {
         }
 
         if self.trained {
-            if !parser::speculative_parse(rec, &index, &self.queries, 0, rec_len-1, 0, &self.stats, &mut results, &b_quote) {
-                parser::basic_parse(rec, &index, &mut self.queries, 0, rec_len-1, 0, self.queries_len, &mut self.stats, false, &mut results, &b_quote);
+            if !parser::speculative_parse(
+                rec,
+                &index,
+                &self.queries,
+                0,
+                rec_len - 1,
+                0,
+                &self.stats,
+                &mut results,
+                &b_quote,
+            ) {
+                parser::basic_parse(
+                    rec,
+                    &index,
+                    &mut self.queries,
+                    0,
+                    rec_len - 1,
+                    0,
+                    self.queries_len,
+                    &mut self.stats,
+                    false,
+                    &mut results,
+                    &b_quote,
+                );
             }
         } else {
-            parser::basic_parse(rec, &index, &mut self.queries, 0, rec_len-1, 0, self.queries_len, &mut self.stats, true, &mut results, &b_quote);
+            parser::basic_parse(
+                rec,
+                &index,
+                &mut self.queries,
+                0,
+                rec_len - 1,
+                0,
+                self.queries_len,
+                &mut self.stats,
+                true,
+                &mut results,
+                &b_quote,
+            );
             self.trained_num += 1;
             if self.trained_num >= self.train_num {
                 self.trained = true;
@@ -131,42 +177,42 @@ impl<'a> Pikkr<'a> {
     }
 }
 
- #[inline]
- fn is_valid_query_strs<'a>(query_strs: &'a Vec<&'a[u8]>) -> bool {
-     for query_str in query_strs {
-         if !is_valid_query_str(query_str) {
-             return false;
-         }
-     }
-     true
- }
-
- #[inline]
- fn is_valid_query_str<'a>(query_str: &'a[u8]) -> bool {
-     if query_str.len() < ROOT_QUERY_STR_OFFSET + 1 {
-         return false;
-     }
-     if query_str[0] != DOLLAR || query_str[1] != DOT {
-         return false;
-     }
-     let mut s = ROOT_QUERY_STR_OFFSET-1;
-     for i in s+1..query_str.len() {
-         if query_str[i] != DOT {
-             continue;
-         }
-         if i == s+1 {
-             return false;
-         }
-         if i == query_str.len()-1 {
-             return false;
-         }
-         s = i;
-     }
-     true
- }
+#[inline]
+fn is_valid_query_strs<'a>(query_strs: &'a Vec<&'a [u8]>) -> bool {
+    for query_str in query_strs {
+        if !is_valid_query_str(query_str) {
+            return false;
+        }
+    }
+    true
+}
 
 #[inline]
-fn set_queries<'a>(queries: &mut FnvHashMap<&'a[u8], Query<'a>>, s: &'a[u8], i: usize, qi: usize, ri: usize) -> (usize, usize) {
+fn is_valid_query_str<'a>(query_str: &'a [u8]) -> bool {
+    if query_str.len() < ROOT_QUERY_STR_OFFSET + 1 {
+        return false;
+    }
+    if query_str[0] != DOLLAR || query_str[1] != DOT {
+        return false;
+    }
+    let mut s = ROOT_QUERY_STR_OFFSET - 1;
+    for i in s + 1..query_str.len() {
+        if query_str[i] != DOT {
+            continue;
+        }
+        if i == s + 1 {
+            return false;
+        }
+        if i == query_str.len() - 1 {
+            return false;
+        }
+        s = i;
+    }
+    true
+}
+
+#[inline]
+fn set_queries<'a>(queries: &mut FnvHashMap<&'a [u8], Query<'a>>, s: &'a [u8], i: usize, qi: usize, ri: usize) -> (usize, usize) {
     for j in i..s.len() {
         if s[j] == DOT {
             let t = s.get(i..j).unwrap();
@@ -178,20 +224,29 @@ fn set_queries<'a>(queries: &mut FnvHashMap<&'a[u8], Query<'a>>, s: &'a[u8], i: 
                 children_len: 0,
             });
             let mut children = query.children.get_or_insert(FnvHashMap::default());
-            let (child_level, next_qi)  = set_queries(&mut children, s, j+1, if qi == query.i { qi + 1 } else { qi }, ri);
+            let (child_level, next_qi) = set_queries(
+                &mut children,
+                s,
+                j + 1,
+                if qi == query.i { qi + 1 } else { qi },
+                ri,
+            );
             query.children_len = children.len();
             return (child_level + 1, next_qi);
         }
     }
     let t = s.get(i..s.len()).unwrap();
     if !queries.contains_key(t) {
-        queries.insert(t, Query {
-            i: qi,
-            ri: ri,
-            target: true,
-            children: None,
-            children_len: 0,
-        });
+        queries.insert(
+            t,
+            Query {
+                i: qi,
+                ri: ri,
+                target: true,
+                children: None,
+                children_len: 0,
+            },
+        );
         return (1, qi + 1);
     } else {
         queries.get_mut(t).unwrap().target = true;
@@ -206,7 +261,7 @@ mod tests {
     #[test]
     fn test_pikkr_new() {
         struct TestCase<'a> {
-            query_strs: Vec<&'a[u8]>,
+            query_strs: Vec<&'a [u8]>,
             err: bool,
         }
         let test_cases = vec![
@@ -245,7 +300,7 @@ mod tests {
             TestCase {
                 query_strs: vec!["$.aaaa".as_bytes(), "$.bbbb".as_bytes()],
                 err: false,
-            }
+            },
         ];
         for t in test_cases {
             let err = match Pikkr::new(&t.query_strs, 1) {
@@ -270,7 +325,7 @@ mod tests {
         let mut p = Pikkr::new(&queries, 1000000000).unwrap();
         struct TestCase<'a> {
             rec: &'a str,
-            want: Result<Vec<Option<&'a[u8]>>>,
+            want: Result<Vec<Option<&'a [u8]>>>,
         }
         let test_cases = vec![
             TestCase {
@@ -283,7 +338,15 @@ mod tests {
             },
             TestCase {
                 rec: r#"{"f0": "a", "f1": "b"}"#,
-                want: Ok(vec![Some(r#""b""#.as_bytes()), None, None, None, None, None, None]),
+                want: Ok(vec![
+                    Some(r#""b""#.as_bytes()),
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                ]),
             },
             TestCase {
                 rec: r#"{"f0": "a", "f1": "b", "f2": {"f1": 1, "f2": {"f1": "c", "f2": "d"}}, "f3": [1, 2, 3]}"#,
@@ -295,15 +358,33 @@ mod tests {
                     None,
                     Some(r#"[1, 2, 3]"#.as_bytes()),
                     None,
-                ])
+                ]),
             },
             TestCase {
                 rec: r#"{"f1": "Português do Brasil,Català,Deutsch,Español,Français,Bahasa,Italiano,עִבְרִית,日本語,한국어,Română,中文（简体）,中文（繁體）,Українська,Ўзбекча,Türkçe"}"#,
-                want: Ok(vec![Some(r#""Português do Brasil,Català,Deutsch,Español,Français,Bahasa,Italiano,עִבְרִית,日本語,한국어,Română,中文（简体）,中文（繁體）,Українська,Ўзбекча,Türkçe""#.as_bytes()), None, None, None, None, None, None]),
+                want: Ok(vec![
+                    Some(
+                        r#""Português do Brasil,Català,Deutsch,Español,Français,Bahasa,Italiano,עִבְרִית,日本語,한국어,Română,中文（简体）,中文（繁體）,Українська,Ўзбекча,Türkçe""#.as_bytes(),
+                    ),
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                ]),
             },
             TestCase {
                 rec: r#"{"f1": "\"f1\": \\"}"#,
-                want: Ok(vec![Some(r#""\"f1\": \\""#.as_bytes()), None, None, None, None, None, None]),
+                want: Ok(vec![
+                    Some(r#""\"f1\": \\""#.as_bytes()),
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                ]),
             },
             TestCase {
                 rec: r#"
@@ -311,14 +392,21 @@ mod tests {
                      	"f1" 	 : 	 "b"
                     }
                 "#,
-                want: Ok(vec![Some(r#""b""#.as_bytes()), None, None, None, None, None, None]),
+                want: Ok(vec![
+                    Some(r#""b""#.as_bytes()),
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                ]),
             },
             // for issue #10
             TestCase {
                 rec: r#""#,
                 want: Err(Error::from(ErrorKind::InvalidRecord)),
             },
-
         ];
         for t in test_cases {
             let got = p.parse(t.rec.as_bytes());
@@ -338,7 +426,7 @@ mod tests {
         let mut p = Pikkr::new(&queries, 1).unwrap();
         struct TestCase<'a> {
             rec: &'a str,
-            want: Result<Vec<Option<&'a[u8]>>>,
+            want: Result<Vec<Option<&'a [u8]>>>,
         }
         let test_cases = vec![
             TestCase {
@@ -349,7 +437,7 @@ mod tests {
                     Some(r#"1"#.as_bytes()),
                     Some(r#""c""#.as_bytes()),
                     Some(r#"[1, 2, 3]"#.as_bytes()),
-                ])
+                ]),
             },
             TestCase {
                 rec: r#"{"f0": "a", "f1": "b", "f2": {"f1": 1, "f2": {"f1": "c", "f2": "d"}}, "f3": [1, 2, 3]}"#,
@@ -451,7 +539,7 @@ mod tests {
             TestCase {
                 query_str: "$.aaaa.bbbb.",
                 want: false,
-            }
+            },
         ];
         for t in test_cases {
             let got = is_valid_query_str(t.query_str.as_bytes());
