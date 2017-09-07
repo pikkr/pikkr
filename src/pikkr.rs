@@ -124,7 +124,9 @@ impl<'a> Pikkr<'a> {
         }
 
         let mut index = Vec::with_capacity(self.level);
-        index_builder::build_leveled_colon_bitmap(&b_colon, &b_left, &b_right, self.level, &mut index);
+        if let Err(e) = index_builder::build_leveled_colon_bitmap(&b_colon, &b_left, &b_right, self.level, &mut index) {
+            return Err(e);
+        };
 
         let mut results = Vec::with_capacity(self.query_strs_len);
         for _ in 0..self.query_strs_len {

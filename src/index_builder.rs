@@ -1,4 +1,6 @@
 use super::bit;
+use super::error::{Error, ErrorKind};
+use super::result::Result;
 use x86intrin::{m256i, mm256_cmpeq_epi8, mm256_movemask_epi8, mm256_setr_epi8};
 
 #[inline]
@@ -1356,7 +1358,7 @@ pub fn build_string_mask_bitmap(b_quote: &Vec<u64>, b_string_mask: &mut Vec<u64>
 }
 
 #[inline]
-pub fn build_leveled_colon_bitmap(b_colon: &Vec<u64>, b_left: &Vec<u64>, b_right: &Vec<u64>, l: usize, b: &mut Vec<Vec<u64>>) {
+pub fn build_leveled_colon_bitmap(b_colon: &Vec<u64>, b_left: &Vec<u64>, b_right: &Vec<u64>, l: usize, b: &mut Vec<Vec<u64>>) -> Result<()> {
     for _ in 0..l {
         b.push(b_colon.clone());
     }
@@ -1375,7 +1377,12 @@ pub fn build_leveled_colon_bitmap(b_colon: &Vec<u64>, b_left: &Vec<u64>, b_right
                 m_leftbit = bit::e(m_left);
             }
             if m_rightbit != 0 {
-                let (j, mlb) = s.pop().unwrap();
+                let (j, mlb) = match s.pop() {
+                    Some(v) => v,
+                    None => {
+                        return Err(Error::from(ErrorKind::InvalidRecord));
+                    }
+                };
                 s_len -= 1;
                 m_leftbit = mlb;
                 if s_len > 0 {
@@ -1399,6 +1406,7 @@ pub fn build_leveled_colon_bitmap(b_colon: &Vec<u64>, b_left: &Vec<u64>, b_right
             }
         }
     }
+    Ok(())
 }
 
 #[cfg(test)]
@@ -4469,7 +4477,8 @@ mod tests {
         ];
         for t in test_cases {
             let mut b = Vec::with_capacity(t.l);
-            build_leveled_colon_bitmap(&t.b_colon, &t.b_left, &t.b_right, t.l, &mut b);
+            let r = build_leveled_colon_bitmap(&t.b_colon, &t.b_left, &t.b_right, t.l, &mut b);
+            assert_eq!(Ok(()), r);
             assert_eq!(t.want, b);
         }
     }
