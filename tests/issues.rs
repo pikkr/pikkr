@@ -47,12 +47,11 @@ mod issues {
     }
 
     #[test]
-    #[should_panic]
     fn issue12_panic_in_build_leveled_colon_bitmap() {
         let q = &["$.a"];
         let t = 1;
         let r = b"(}";
-        let _ = do_parse!((q, t, r) => Ok(_));
+        let _ = do_parse!((q, t, r) => Ok(Err(ref e)) if e.kind() == ErrorKind::InvalidRecord);
     }
 
     #[test]

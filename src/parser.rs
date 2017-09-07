@@ -228,7 +228,8 @@ mod tests {
         }
         let l = 10;
         let mut index = Vec::with_capacity(l);
-        index_builder::build_leveled_colon_bitmap(&b_colon, &b_left, &b_right, l, &mut index);
+        let r = index_builder::build_leveled_colon_bitmap(&b_colon, &b_left, &b_right, l, &mut index);
+        assert_eq!(Ok(()), r);
         let mut children = FnvHashMap::default();
         children.insert(
             "d1".as_bytes(),
