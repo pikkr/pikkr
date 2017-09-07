@@ -1,15 +1,22 @@
 use super::bit;
+use super::error::{Error, ErrorKind};
 use super::query::Query;
+use super::result::Result;
 use super::utf8::{COMMA, CR, HT, LF, RIGHT_BRACE, SPACE};
 use fnv::{FnvHashMap, FnvHashSet};
 
 #[inline]
-pub fn basic_parse<'a>(rec: &'a [u8], index: &Vec<Vec<u64>>, queries: &mut FnvHashMap<&[u8], Query>, start: usize, end: usize, level: usize, query_num: usize, stats: &mut Vec<FnvHashSet<usize>>, set_stats: bool, results: &mut Vec<Option<&'a [u8]>>, b_quote: &Vec<u64>) {
+pub fn basic_parse<'a>(rec: &'a [u8], index: &Vec<Vec<u64>>, queries: &mut FnvHashMap<&[u8], Query>, start: usize, end: usize, level: usize, query_num: usize, stats: &mut Vec<FnvHashSet<usize>>, set_stats: bool, results: &mut Vec<Option<&'a [u8]>>, b_quote: &Vec<u64>) -> Result<()> {
     let mut found_num = 0;
     let cp = generate_colon_positions(index, start, end, level);
     let mut vei = end;
     for i in (0..cp.len()).rev() {
-        let (fsi, fei) = search_pre_field_indices(b_quote, if i > 0 { cp[i - 1] } else { start }, cp[i]);
+        let (fsi, fei) = match search_pre_field_indices(b_quote, if i > 0 { cp[i - 1] } else { start }, cp[i]) {
+            Ok(fsei) => fsei,
+            Err(e) => {
+                return Err(e);
+            }
+        };
         let field = &rec[fsi + 1..fei];
         if let Some(query) = queries.get_mut(field) {
             let (vsi, vei) = search_post_value_indices(rec, cp[i] + 1, vei, i == cp.len() - 1);
@@ -18,7 +25,7 @@ pub fn basic_parse<'a>(rec: &'a [u8], index: &Vec<Vec<u64>>, queries: &mut FnvHa
                 stats[query.i].insert(i);
             }
             if let Some(ref mut children) = query.children {
-                basic_parse(
+                if let Err(e) = basic_parse(
                     rec,
                     index,
                     children,
@@ -30,21 +37,24 @@ pub fn basic_parse<'a>(rec: &'a [u8], index: &Vec<Vec<u64>>, queries: &mut FnvHa
                     set_stats,
                     results,
                     b_quote,
-                );
+                ) {
+                    return Err(e);
+                };
             }
             if query.target {
                 results[query.ri] = Some(&rec[vsi..vei + 1]);
             }
             if found_num == query_num {
-                return;
+                return Ok(());
             }
         }
         vei = fsi - 1;
     }
+    Ok(())
 }
 
 #[inline]
-pub fn speculative_parse<'a>(rec: &'a [u8], index: &Vec<Vec<u64>>, queries: &FnvHashMap<&[u8], Query>, start: usize, end: usize, level: usize, stats: &Vec<FnvHashSet<usize>>, results: &mut Vec<Option<&'a [u8]>>, b_quote: &Vec<u64>) -> bool {
+pub fn speculative_parse<'a>(rec: &'a [u8], index: &Vec<Vec<u64>>, queries: &FnvHashMap<&[u8], Query>, start: usize, end: usize, level: usize, stats: &Vec<FnvHashSet<usize>>, results: &mut Vec<Option<&'a [u8]>>, b_quote: &Vec<u64>) -> Result<bool> {
     let cp = generate_colon_positions(index, start, end, level);
     for (s, q) in queries.iter() {
         let mut found = false;
@@ -52,18 +62,28 @@ pub fn speculative_parse<'a>(rec: &'a [u8], index: &Vec<Vec<u64>>, queries: &Fnv
             if *i >= cp.len() {
                 continue;
             }
-            let (fsi, fei) = search_pre_field_indices(b_quote, if *i > 0 { cp[*i - 1] } else { start }, cp[*i]);
+            let (fsi, fei) = match search_pre_field_indices(b_quote, if *i > 0 { cp[*i - 1] } else { start }, cp[*i]) {
+                Ok(fsei) => fsei,
+                Err(e) => {
+                    return Err(e);
+                }
+            };
             let field = &rec[fsi + 1..fei];
             if s == &field {
                 let vei = if *i < cp.len() - 1 {
-                    let (nfsi, _) = search_pre_field_indices(b_quote, cp[*i], cp[*i + 1]);
+                    let nfsi = match search_pre_field_indices(b_quote, cp[*i], cp[*i + 1]) {
+                        Ok((nfsi, _)) => nfsi,
+                        Err(e) => {
+                            return Err(e);
+                        }
+                    };
                     nfsi - 1
                 } else {
                     end
                 };
                 let (vsi, vei) = search_post_value_indices(rec, cp[*i] + 1, vei, *i == cp.len() - 1);
                 if let Some(ref children) = q.children {
-                    found = speculative_parse(
+                    found = match speculative_parse(
                         rec,
                         index,
                         children,
@@ -73,7 +93,10 @@ pub fn speculative_parse<'a>(rec: &'a [u8], index: &Vec<Vec<u64>>, queries: &Fnv
                         stats,
                         results,
                         b_quote,
-                    );
+                    ) {
+                        Ok(found) => found,
+                        Err(e) => return Err(e),
+                    };
                 } else {
                     found = true;
                 }
@@ -84,10 +107,10 @@ pub fn speculative_parse<'a>(rec: &'a [u8], index: &Vec<Vec<u64>>, queries: &Fnv
             }
         }
         if !found {
-            return false;
+            return Ok(false);
         }
     }
-    true
+    Ok(true)
 }
 
 #[inline]
@@ -108,7 +131,7 @@ fn generate_colon_positions(index: &Vec<Vec<u64>>, start: usize, end: usize, lev
 }
 
 #[inline]
-fn search_pre_field_indices(b_quote: &Vec<u64>, start: usize, end: usize) -> (usize, usize) {
+fn search_pre_field_indices(b_quote: &Vec<u64>, start: usize, end: usize) -> Result<(usize, usize)> {
     let mut si = 0;
     let mut ei = 0;
     let mut ei_set = false;
@@ -139,7 +162,11 @@ fn search_pre_field_indices(b_quote: &Vec<u64>, start: usize, end: usize) -> (us
             ei_set = true;
         }
     }
-    (si, ei)
+    if n_quote >= 2 {
+        Ok((si, ei))
+    } else {
+        Err(Error::from(ErrorKind::InvalidRecord))
+    }
 }
 
 #[inline]
@@ -290,7 +317,7 @@ mod tests {
 
         let mut results = vec![None, None, None, None, None, None];
 
-        basic_parse(
+        let result = basic_parse(
             json_rec,
             &index,
             &mut queries,
@@ -304,6 +331,7 @@ mod tests {
             &b_quote,
         );
 
+        assert_eq!(Ok(()), result);
         assert_eq!(Some(r#""D1""#.as_bytes()), results[0]);
         assert_eq!(Some(r#"333"#.as_bytes()), results[1]);
         assert_eq!(Some(r#""AAA""#.as_bytes()), results[2]);

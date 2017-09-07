@@ -132,7 +132,7 @@ impl<'a> Pikkr<'a> {
         }
 
         if self.trained {
-            if !parser::speculative_parse(
+            let found = match parser::speculative_parse(
                 rec,
                 &index,
                 &self.queries,
@@ -143,7 +143,13 @@ impl<'a> Pikkr<'a> {
                 &mut results,
                 &b_quote,
             ) {
-                parser::basic_parse(
+                Ok(found) => found,
+                Err(e) => {
+                    return Err(e);
+                }
+            };
+            if !found {
+                if let Err(e) = parser::basic_parse(
                     rec,
                     &index,
                     &mut self.queries,
@@ -155,10 +161,12 @@ impl<'a> Pikkr<'a> {
                     false,
                     &mut results,
                     &b_quote,
-                );
+                ) {
+                    return Err(e);
+                };
             }
         } else {
-            parser::basic_parse(
+            if let Err(e) = parser::basic_parse(
                 rec,
                 &index,
                 &mut self.queries,
@@ -170,7 +178,9 @@ impl<'a> Pikkr<'a> {
                 true,
                 &mut results,
                 &b_quote,
-            );
+            ) {
+                return Err(e);
+            };
             self.trained_num += 1;
             if self.trained_num >= self.train_num {
                 self.trained = true;

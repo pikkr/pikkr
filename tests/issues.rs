@@ -39,12 +39,11 @@ mod issues {
     // TODO: remove #[should_panic]
 
     #[test]
-    #[should_panic]
     fn issue11_panic_on_None_unwrapped_in_parser() {
         let q = &["$.a"];
         let t = 1;
         let r = &[40, 0, 0, 0, 159, 159, 159, 0, 0, 0, 0, 58][..];
-        let _ = do_parse!((q, t, r) => Ok(_));
+        let _ = do_parse!((q, t, r) => Ok(Err(ref e)) if e.kind() == ErrorKind::InvalidRecord);
     }
 
     #[test]
@@ -57,11 +56,10 @@ mod issues {
     }
 
     #[test]
-    #[should_panic]
     fn issue13_integer_overflow_in_parser() {
         let q = &["$.a"];
         let t = 1;
         let r = b"\\\":";
-        let _ = do_parse!((q, t, r) => Ok(_));
+        let _ = do_parse!((q, t, r) => Ok(Err(ref e)) if e.kind() == ErrorKind::InvalidRecord);
     }
 }
