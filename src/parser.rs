@@ -10,7 +10,7 @@ pub fn basic_parse<'a>(rec: &'a [u8], index: &Vec<Vec<u64>>, queries: &mut FnvHa
     let mut vei = end;
     for i in (0..cp.len()).rev() {
         let (fsi, fei) = search_pre_field_indices(b_quote, if i > 0 { cp[i - 1] } else { start }, cp[i]);
-        let field = rec.get(fsi + 1..fei).unwrap();
+        let field = &rec[fsi + 1..fei];
         if let Some(query) = queries.get_mut(field) {
             let (vsi, vei) = search_post_value_indices(rec, cp[i] + 1, vei, i == cp.len() - 1);
             found_num += 1;
@@ -33,7 +33,7 @@ pub fn basic_parse<'a>(rec: &'a [u8], index: &Vec<Vec<u64>>, queries: &mut FnvHa
                 );
             }
             if query.target {
-                results[query.ri] = Some(rec.get(vsi..vei + 1).unwrap());
+                results[query.ri] = Some(&rec[vsi..vei + 1]);
             }
             if found_num == query_num {
                 return;
@@ -53,7 +53,7 @@ pub fn speculative_parse<'a>(rec: &'a [u8], index: &Vec<Vec<u64>>, queries: &Fnv
                 continue;
             }
             let (fsi, fei) = search_pre_field_indices(b_quote, if *i > 0 { cp[*i - 1] } else { start }, cp[*i]);
-            let field = rec.get(fsi + 1..fei).unwrap();
+            let field = &rec[fsi + 1..fei];
             if s == &field {
                 let vei = if *i < cp.len() - 1 {
                     let (nfsi, _) = search_pre_field_indices(b_quote, cp[*i], cp[*i + 1]);
@@ -78,7 +78,7 @@ pub fn speculative_parse<'a>(rec: &'a [u8], index: &Vec<Vec<u64>>, queries: &Fnv
                     found = true;
                 }
                 if q.target {
-                    results[q.ri] = Some(rec.get(vsi..vei + 1).unwrap());
+                    results[q.ri] = Some(&rec[vsi..vei + 1]);
                 }
                 break;
             }
