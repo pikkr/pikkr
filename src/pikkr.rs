@@ -210,7 +210,7 @@ fn is_valid_query_str<'a>(query_str: &'a [u8]) -> bool {
 fn set_queries<'a>(queries: &mut FnvHashMap<&'a [u8], Query<'a>>, s: &'a [u8], i: usize, qi: usize, ri: usize) -> (usize, usize) {
     for j in i..s.len() {
         if s[j] == DOT {
-            let t = s.get(i..j).unwrap();
+            let t = &s[i..j];
             let query = queries.entry(t).or_insert(Query {
                 i: qi,
                 ri: ri,
@@ -230,7 +230,7 @@ fn set_queries<'a>(queries: &mut FnvHashMap<&'a [u8], Query<'a>>, s: &'a [u8], i
             return (child_level + 1, next_qi);
         }
     }
-    let t = s.get(i..s.len()).unwrap();
+    let t = &s[i..];
     if !queries.contains_key(t) {
         queries.insert(
             t,
