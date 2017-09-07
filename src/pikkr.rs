@@ -34,8 +34,8 @@ pub struct Pikkr<'a> {
 impl<'a> Pikkr<'a> {
     /// Creates a JSON parser and returns it.
     #[inline]
-    pub fn new(query_strs: &'a Vec<&'a [u8]>, train_num: usize) -> Result<Pikkr<'a>> {
-        if !is_valid_query_strs(query_strs) {
+    pub fn new<S: ?Sized + AsRef<[u8]>>(query_strs: &[&'a S], train_num: usize) -> Result<Pikkr<'a>> {
+        if query_strs.iter().any(|s| !is_valid_query_str(s.as_ref())) {
             return Err(Error::from(ErrorKind::InvalidQuery));
         }
 
@@ -60,7 +60,13 @@ impl<'a> Pikkr<'a> {
 
         let mut qi = 0;
         for (ri, query_str) in query_strs.iter().enumerate() {
-            let (level, next_qi) = set_queries(&mut p.queries, query_str, ROOT_QUERY_STR_OFFSET, qi, ri);
+            let (level, next_qi) = set_queries(
+                &mut p.queries,
+                (*query_str).as_ref(),
+                ROOT_QUERY_STR_OFFSET,
+                qi,
+                ri,
+            );
             p.level = cmp::max(p.level, level);
             qi = next_qi;
         }
@@ -76,7 +82,9 @@ impl<'a> Pikkr<'a> {
 
     /// Parses a JSON record and returns the result.
     #[inline]
-    pub fn parse<'b>(&mut self, rec: &'b [u8]) -> Result<Vec<Option<&'b [u8]>>> {
+    pub fn parse<'b, S: ?Sized + AsRef<[u8]>>(&mut self, rec: &'b S) -> Result<Vec<Option<&'b [u8]>>> {
+        let rec = rec.as_ref();
+
         let rec_len = rec.len();
         if rec_len == 0 {
             return Err(Error::from(ErrorKind::InvalidRecord));
@@ -177,15 +185,6 @@ impl<'a> Pikkr<'a> {
     }
 }
 
-#[inline]
-fn is_valid_query_strs<'a>(query_strs: &'a Vec<&'a [u8]>) -> bool {
-    for query_str in query_strs {
-        if !is_valid_query_str(query_str) {
-            return false;
-        }
-    }
-    true
-}
 
 #[inline]
 fn is_valid_query_str<'a>(query_str: &'a [u8]) -> bool {
