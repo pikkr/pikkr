@@ -397,11 +397,6 @@ mod tests {
                     None,
                 ]),
             },
-            // for issue #10
-            TestCase {
-                rec: r#""#,
-                want: Err(Error::from(ErrorKind::InvalidRecord)),
-            },
         ];
         for t in test_cases {
             let got = p.parse(t.rec.as_bytes());
@@ -467,11 +462,6 @@ mod tests {
             TestCase {
                 rec: r#"{}"#,
                 want: Ok(vec![None, None, None, None, None]),
-            },
-            // for issue #10
-            TestCase {
-                rec: r#""#,
-                want: Err(Error::from(ErrorKind::InvalidRecord)),
             },
         ];
         for t in test_cases {
