@@ -172,15 +172,13 @@ mod tests {
     fn test_basic_parse() {
         let json_rec_str = r#"{ "aaa" : "AAA", "bbb" : 111, "ccc": ["C1", "C2"], "ddd" : { "d1" : "D1", "d2" : "D2", "d3": 333 }, "eee": { "e1": "EEE" } } "#;
         let json_rec = json_rec_str.as_bytes();
-        let mut s = Vec::with_capacity((json_rec.len() + 31) / 32);
-        avx::u8_to_m256i(&json_rec, &mut s);
-        let mut b_backslash = Vec::with_capacity((s.len() + 1) / 2);
-        let mut b_quote = Vec::with_capacity((s.len() + 1) / 2);
-        let mut b_colon = Vec::with_capacity((s.len() + 1) / 2);
-        let mut b_left = Vec::with_capacity((s.len() + 1) / 2);
-        let mut b_right = Vec::with_capacity((s.len() + 1) / 2);
+        let mut b_backslash = Vec::with_capacity((json_rec.len() + 63) / 64);
+        let mut b_quote = Vec::with_capacity((json_rec.len() + 63) / 64);
+        let mut b_colon = Vec::with_capacity((json_rec.len() + 63) / 64);
+        let mut b_left = Vec::with_capacity((json_rec.len() + 63) / 64);
+        let mut b_right = Vec::with_capacity((json_rec.len() + 63) / 64);
         index_builder::build_structural_character_bitmap(
-            &s,
+            &json_rec,
             &mut b_backslash,
             &mut b_quote,
             &mut b_colon,

@@ -90,11 +90,7 @@ impl<'a> Pikkr<'a> {
             return Err(Error::from(ErrorKind::InvalidRecord));
         }
 
-        let rec_m256i_len = (rec_len + 31) / 32;
-        let mut rec_m256i = Vec::with_capacity(rec_m256i_len);
-        avx::u8_to_m256i(rec, &mut rec_m256i);
-
-        let b_len = (rec_m256i_len + 1) / 2;
+        let b_len = (rec_len + 63) / 64;
         let mut b_backslash = Vec::with_capacity(b_len);
         let mut b_quote = Vec::with_capacity(b_len);
         let mut b_colon = Vec::with_capacity(b_len);
@@ -102,7 +98,7 @@ impl<'a> Pikkr<'a> {
         let mut b_right = Vec::with_capacity(b_len);
 
         index_builder::build_structural_character_bitmap(
-            &rec_m256i,
+            &rec,
             &mut b_backslash,
             &mut b_quote,
             &mut b_colon,
