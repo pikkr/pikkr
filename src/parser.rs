@@ -19,7 +19,16 @@ pub fn basic_parse<'a>(rec: &'a [u8], index: &Vec<Vec<u64>>, queries: &mut FnvHa
         };
         let field = &rec[fsi + 1..fei];
         if let Some(query) = queries.get_mut(field) {
-            let (vsi, vei) = match search_post_value_indices(rec, cp[i] + 1, vei, if i == cp.len() - 1 { RIGHT_BRACE } else { COMMA }) {
+            let (vsi, vei) = match search_post_value_indices(
+                rec,
+                cp[i] + 1,
+                vei,
+                if i == cp.len() - 1 {
+                    RIGHT_BRACE
+                } else {
+                    COMMA
+                },
+            ) {
                 Ok(vsei) => vsei,
                 Err(e) => {
                     return Err(e);
@@ -86,7 +95,16 @@ pub fn speculative_parse<'a>(rec: &'a [u8], index: &Vec<Vec<u64>>, queries: &Fnv
                 } else {
                     end
                 };
-                let (vsi, vei) = match search_post_value_indices(rec, cp[*i] + 1, vei, if *i == cp.len() - 1 { RIGHT_BRACE } else { COMMA }) {
+                let (vsi, vei) = match search_post_value_indices(
+                    rec,
+                    cp[*i] + 1,
+                    vei,
+                    if *i == cp.len() - 1 {
+                        RIGHT_BRACE
+                    } else {
+                        COMMA
+                    },
+                ) {
                     Ok(vsei) => vsei,
                     Err(e) => {
                         return Err(e);
@@ -187,8 +205,12 @@ fn search_post_value_indices(rec: &[u8], si: usize, ei: usize, ignore_once_char:
     let n = rec.len();
     while si < n {
         match rec[si] {
-            SPACE | HT | LF | CR => { si += 1; }
-            _ => { break; }
+            SPACE | HT | LF | CR => {
+                si += 1;
+            }
+            _ => {
+                break;
+            }
         }
     }
     if si == n {
@@ -196,7 +218,9 @@ fn search_post_value_indices(rec: &[u8], si: usize, ei: usize, ignore_once_char:
     }
     while si <= ei {
         match rec[ei] {
-            SPACE | HT | LF | CR => { ei -= 1; }
+            SPACE | HT | LF | CR => {
+                ei -= 1;
+            }
             char if char == ignore_once_char => {
                 if ignore_once_char_ignored {
                     break;
@@ -204,7 +228,9 @@ fn search_post_value_indices(rec: &[u8], si: usize, ei: usize, ignore_once_char:
                 ignore_once_char_ignored = true;
                 ei -= 1;
             }
-            _ => { break; }
+            _ => {
+                break;
+            }
         }
     }
     if ei < si {
