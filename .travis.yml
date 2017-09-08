@@ -6,4 +6,5 @@ rust:
 matrix:
   allow_failures:
     - rust: nightly
+cache: cargo
 script: ./ci.sh
