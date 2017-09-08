@@ -6,7 +6,7 @@ use super::utf8::{COMMA, CR, HT, LF, RIGHT_BRACE, SPACE};
 use fnv::{FnvHashMap, FnvHashSet};
 
 #[inline]
-pub fn basic_parse<'a>(rec: &'a [u8], index: &Vec<Vec<u64>>, queries: &mut FnvHashMap<&[u8], Query>, start: usize, end: usize, level: usize, query_num: usize, stats: &mut Vec<FnvHashSet<usize>>, set_stats: bool, results: &mut Vec<Option<&'a [u8]>>, b_quote: &Vec<u64>) -> Result<()> {
+pub fn basic_parse<'a>(rec: &'a [u8], index: &[Vec<u64>], queries: &mut FnvHashMap<&[u8], Query>, start: usize, end: usize, level: usize, query_num: usize, stats: &mut Vec<FnvHashSet<usize>>, set_stats: bool, results: &mut Vec<Option<&'a [u8]>>, b_quote: &[u64]) -> Result<()> {
     let mut found_num = 0;
     let cp = generate_colon_positions(index, start, end, level);
     let mut vei = end;
@@ -68,7 +68,7 @@ pub fn basic_parse<'a>(rec: &'a [u8], index: &Vec<Vec<u64>>, queries: &mut FnvHa
 }
 
 #[inline]
-pub fn speculative_parse<'a>(rec: &'a [u8], index: &Vec<Vec<u64>>, queries: &FnvHashMap<&[u8], Query>, start: usize, end: usize, level: usize, stats: &Vec<FnvHashSet<usize>>, results: &mut Vec<Option<&'a [u8]>>, b_quote: &Vec<u64>) -> Result<bool> {
+pub fn speculative_parse<'a>(rec: &'a [u8], index: &[Vec<u64>], queries: &FnvHashMap<&[u8], Query>, start: usize, end: usize, level: usize, stats: &[FnvHashSet<usize>], results: &mut Vec<Option<&'a [u8]>>, b_quote: &[u64]) -> Result<bool> {
     let cp = generate_colon_positions(index, start, end, level);
     for (s, q) in queries.iter() {
         let mut found = false;
@@ -142,7 +142,7 @@ pub fn speculative_parse<'a>(rec: &'a [u8], index: &Vec<Vec<u64>>, queries: &Fnv
 }
 
 #[inline]
-fn generate_colon_positions(index: &Vec<Vec<u64>>, start: usize, end: usize, level: usize) -> Vec<usize> {
+fn generate_colon_positions(index: &[Vec<u64>], start: usize, end: usize, level: usize) -> Vec<usize> {
     let mut c = Vec::new();
     for i in start / 64..(end + 63) / 64 {
         let mut m_colon = index[level][i];
@@ -155,11 +155,11 @@ fn generate_colon_positions(index: &Vec<Vec<u64>>, start: usize, end: usize, lev
             m_colon = bit::r(m_colon);
         }
     }
-    return c;
+    c
 }
 
 #[inline]
-fn search_pre_field_indices(b_quote: &Vec<u64>, start: usize, end: usize) -> Result<(usize, usize)> {
+fn search_pre_field_indices(b_quote: &[u64], start: usize, end: usize) -> Result<(usize, usize)> {
     let mut si = 0;
     let mut ei = 0;
     let mut ei_set = false;

@@ -186,12 +186,12 @@ pub fn build_structural_character_bitmap(s: &[u8], b_backslash: &mut Vec<u64>, b
 fn mbitmap(s1: &m256i, s2: &m256i, m: &m256i) -> u64 {
     let i1 = mm256_movemask_epi8(mm256_cmpeq_epi8(*s1, *m));
     let i2 = mm256_movemask_epi8(mm256_cmpeq_epi8(*s2, *m));
-    (i1 as u32 as u64) | ((i2 as u32 as u64) << 32)
+    u64::from(i1 as u32) | (u64::from(i2 as u32) << 32)
 }
 
 #[inline]
 fn mbitmap_partial(s: &m256i, m: &m256i) -> u64 {
-    mm256_movemask_epi8(mm256_cmpeq_epi8(*s, *m)) as u32 as u64
+    u64::from(mm256_movemask_epi8(mm256_cmpeq_epi8(*s, *m)) as u32)
 }
 
 #[inline]
@@ -1289,7 +1289,7 @@ fn u8_to_m256i_rest(s: &[u8], i: usize) -> m256i {
 }
 
 #[inline]
-pub fn build_structural_quote_bitmap(b_backslash: &Vec<u64>, b_quote: &mut Vec<u64>) {
+pub fn build_structural_quote_bitmap(b_backslash: &[u64], b_quote: &mut Vec<u64>) {
     let n = b_quote.len();
     if n < 1 {
         return;
@@ -1300,9 +1300,9 @@ pub fn build_structural_quote_bitmap(b_backslash: &Vec<u64>, b_quote: &mut Vec<u
         b_backslash_quote.push(((b_quote[i] >> 1) | b_quote[i + 1] << 63) & b_backslash[i]);
     }
     b_backslash_quote.push((b_quote[n - 1] >> 1) & b_backslash[n - 1]);
-    for i in 0..n {
+    for (i, backslash_quote) in b_backslash_quote.iter().enumerate() {
         let mut unstructural_quote = 0u64;
-        let mut backslash_quote = b_backslash_quote[i];
+        let mut backslash_quote = *backslash_quote;
         while backslash_quote != 0 {
             let backslash_quote_mask = bit::s(backslash_quote);
             let backslash_quote_mask_ones_num = backslash_quote_mask.count_ones();
@@ -1317,7 +1317,7 @@ pub fn build_structural_quote_bitmap(b_backslash: &Vec<u64>, b_quote: &mut Vec<u
                         break;
                     }
                 } else {
-                    let backslash_b_mask = backslash_b & 0xffffffffffffffffu64;
+                    let backslash_b_mask = backslash_b & 0xffff_ffff_ffff_ffffu64;
                     let leading_ones_num = (!backslash_b_mask).leading_zeros();
                     consecutive_backslash_num += leading_ones_num;
                     if leading_ones_num != 64 {
@@ -1339,10 +1339,10 @@ pub fn build_structural_quote_bitmap(b_backslash: &Vec<u64>, b_quote: &mut Vec<u
 }
 
 #[inline]
-pub fn build_string_mask_bitmap(b_quote: &Vec<u64>, b_string_mask: &mut Vec<u64>) {
+pub fn build_string_mask_bitmap(b_quote: &[u64], b_string_mask: &mut Vec<u64>) {
     let mut n = 0;
-    for i in 0..b_quote.len() {
-        let mut m_quote = b_quote[i];
+    for m_quote in b_quote {
+        let mut m_quote = *m_quote;
         let mut m_string = 0u64;
         while m_quote != 0 {
             let m = bit::s(m_quote);
@@ -1358,9 +1358,9 @@ pub fn build_string_mask_bitmap(b_quote: &Vec<u64>, b_string_mask: &mut Vec<u64>
 }
 
 #[inline]
-pub fn build_leveled_colon_bitmap(b_colon: &Vec<u64>, b_left: &Vec<u64>, b_right: &Vec<u64>, l: usize, b: &mut Vec<Vec<u64>>) -> Result<()> {
+pub fn build_leveled_colon_bitmap(b_colon: &[u64], b_left: &[u64], b_right: &[u64], l: usize, b: &mut Vec<Vec<u64>>) -> Result<()> {
     for _ in 0..l {
-        b.push(b_colon.clone());
+        b.push(b_colon.to_owned());
     }
     let mut s = Vec::new();
     let mut s_len = 0;
