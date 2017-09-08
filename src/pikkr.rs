@@ -98,7 +98,7 @@ impl<'a> Pikkr<'a> {
         let mut b_right = Vec::with_capacity(b_len);
 
         index_builder::build_structural_character_bitmap(
-            &rec,
+            rec,
             &mut b_backslash,
             &mut b_quote,
             &mut b_colon,
@@ -195,11 +195,9 @@ impl<'a> Pikkr<'a> {
 
 
 #[inline]
-fn is_valid_query_str<'a>(query_str: &'a [u8]) -> bool {
-    if query_str.len() < ROOT_QUERY_STR_OFFSET + 1 {
-        return false;
-    }
-    if query_str[0] != DOLLAR || query_str[1] != DOT {
+fn is_valid_query_str(query_str: &[u8]) -> bool {
+    if query_str.len() < ROOT_QUERY_STR_OFFSET + 1 ||
+       query_str[0] != DOLLAR || query_str[1] != DOT {
         return false;
     }
     let mut s = ROOT_QUERY_STR_OFFSET - 1;
@@ -207,10 +205,7 @@ fn is_valid_query_str<'a>(query_str: &'a [u8]) -> bool {
         if query_str[i] != DOT {
             continue;
         }
-        if i == s + 1 {
-            return false;
-        }
-        if i == query_str.len() - 1 {
+        if i == s + 1 || i == query_str.len() - 1 {
             return false;
         }
         s = i;
@@ -395,8 +390,8 @@ mod tests {
             },
             TestCase {
                 rec: r#"
-                    	{
-                     	"f1" 	 : 	 "b"
+                        {
+                        "f1"     :   "b"
                     }
                 "#,
                 want: Ok(vec![
