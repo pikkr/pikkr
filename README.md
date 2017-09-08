@@ -1,6 +1,7 @@
 # Pikkr
 
 [![Crates.io version shield](https://img.shields.io/crates/v/pikkr.svg)](https://crates.io/crates/pikkr)
+[![Build Status](https://travis-ci.org/pikkr/pikkr.svg?branch=master)](https://travis-ci.org/pikkr/pikkr)
 
 JSON parser which picks up values directly without performing tokenization in Rust
 
