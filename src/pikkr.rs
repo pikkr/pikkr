@@ -196,8 +196,7 @@ impl<'a> Pikkr<'a> {
 
 #[inline]
 fn is_valid_query_str(query_str: &[u8]) -> bool {
-    if query_str.len() < ROOT_QUERY_STR_OFFSET + 1 ||
-       query_str[0] != DOLLAR || query_str[1] != DOT {
+    if query_str.len() < ROOT_QUERY_STR_OFFSET + 1 || query_str[0] != DOLLAR || query_str[1] != DOT {
         return false;
     }
     let mut s = ROOT_QUERY_STR_OFFSET - 1;
