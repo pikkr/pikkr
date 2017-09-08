@@ -19,7 +19,12 @@ pub fn basic_parse<'a>(rec: &'a [u8], index: &Vec<Vec<u64>>, queries: &mut FnvHa
         };
         let field = &rec[fsi + 1..fei];
         if let Some(query) = queries.get_mut(field) {
-            let (vsi, vei) = search_post_value_indices(rec, cp[i] + 1, vei, i == cp.len() - 1);
+            let (vsi, vei) = match search_post_value_indices(rec, cp[i] + 1, vei, if i == cp.len() - 1 { RIGHT_BRACE } else { COMMA }) {
+                Ok(vsei) => vsei,
+                Err(e) => {
+                    return Err(e);
+                }
+            };
             found_num += 1;
             if set_stats && !stats[query.i].contains(&i) {
                 stats[query.i].insert(i);
@@ -81,7 +86,12 @@ pub fn speculative_parse<'a>(rec: &'a [u8], index: &Vec<Vec<u64>>, queries: &Fnv
                 } else {
                     end
                 };
-                let (vsi, vei) = search_post_value_indices(rec, cp[*i] + 1, vei, *i == cp.len() - 1);
+                let (vsi, vei) = match search_post_value_indices(rec, cp[*i] + 1, vei, if *i == cp.len() - 1 { RIGHT_BRACE } else { COMMA }) {
+                    Ok(vsei) => vsei,
+                    Err(e) => {
+                        return Err(e);
+                    }
+                };
                 if let Some(ref children) = q.children {
                     found = match speculative_parse(
                         rec,
@@ -170,22 +180,37 @@ fn search_pre_field_indices(b_quote: &Vec<u64>, start: usize, end: usize) -> Res
 }
 
 #[inline]
-fn search_post_value_indices(rec: &[u8], si: usize, ei: usize, last_cp: bool) -> (usize, usize) {
+fn search_post_value_indices(rec: &[u8], si: usize, ei: usize, ignore_once_char: u8) -> Result<(usize, usize)> {
     let mut si = si;
     let mut ei = ei;
-    while rec[si] == SPACE || rec[si] == HT || rec[si] == LF || rec[si] == CR {
-        si += 1;
-    }
-    while rec[ei] == SPACE || rec[ei] == HT || rec[ei] == LF || rec[ei] == CR || rec[ei] == COMMA {
-        ei -= 1;
-    }
-    if last_cp && rec[ei] == RIGHT_BRACE {
-        ei -= 1;
-        while rec[ei] == SPACE || rec[ei] == HT || rec[ei] == LF || rec[ei] == CR {
-            ei -= 1;
+    let mut ignore_once_char_ignored = false;
+    let n = rec.len();
+    while si < n {
+        match rec[si] {
+            SPACE | HT | LF | CR => { si += 1; }
+            _ => { break; }
         }
     }
-    (si, ei)
+    if si == n {
+        return Err(Error::from(ErrorKind::InvalidRecord));
+    }
+    while si <= ei {
+        match rec[ei] {
+            SPACE | HT | LF | CR => { ei -= 1; }
+            char if char == ignore_once_char => {
+                if ignore_once_char_ignored {
+                    break;
+                }
+                ignore_once_char_ignored = true;
+                ei -= 1;
+            }
+            _ => { break; }
+        }
+    }
+    if ei < si {
+        return Err(Error::from(ErrorKind::InvalidRecord));
+    }
+    Ok((si, ei))
 }
 
 #[cfg(test)]
