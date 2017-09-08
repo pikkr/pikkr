@@ -1,0 +1,11 @@
+dist: trusty
+sudo: required
+language: rust
+rust:
+  - nightly
+matrix:
+  allow_failures:
+    - rust: nightly
+script:
+  - RUSTFLAGS="-C target-cpu=native" cargo build
+  - RUSTFLAGS="-C target-cpu=native" cargo test
