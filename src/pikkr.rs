@@ -80,17 +80,8 @@ impl<'a> Pikkr<'a> {
         Ok(p)
     }
 
-    /// Parses a JSON record and returns the result.
-    #[inline]
-    pub fn parse<'b, S: ?Sized + AsRef<[u8]>>(&mut self, rec: &'b S) -> Result<Vec<Option<&'b [u8]>>> {
-        let rec = rec.as_ref();
-
-        let rec_len = rec.len();
-        if rec_len == 0 {
-            return Err(Error::from(ErrorKind::InvalidRecord));
-        }
-
-        let b_len = (rec_len + 63) / 64;
+    fn build_structural_indices(&self, rec: &[u8]) -> Result<(Vec<Vec<u64>>, Vec<u64>)> {
+        let b_len = (rec.len() + 63) / 64;
         let mut b_backslash = Vec::with_capacity(b_len);
         let mut b_quote = Vec::with_capacity(b_len);
         let mut b_colon = Vec::with_capacity(b_len);
@@ -127,6 +118,21 @@ impl<'a> Pikkr<'a> {
         if let Err(e) = index_builder::build_leveled_colon_bitmap(&b_colon, &b_left, &b_right, self.level, &mut index) {
             return Err(e);
         };
+
+        Ok((index, b_quote))
+    }
+
+    /// Parses a JSON record and returns the result.
+    #[inline]
+    pub fn parse<'b, S: ?Sized + AsRef<[u8]>>(&mut self, rec: &'b S) -> Result<Vec<Option<&'b [u8]>>> {
+        let rec = rec.as_ref();
+
+        let rec_len = rec.len();
+        if rec_len == 0 {
+            return Err(Error::from(ErrorKind::InvalidRecord));
+        }
+
+        let (index, b_quote) = self.build_structural_indices(rec)?;
 
         let mut results = Vec::with_capacity(self.query_strs_len);
         for _ in 0..self.query_strs_len {
