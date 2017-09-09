@@ -18,42 +18,36 @@ pub struct Query<'a> {
 
 /// A pattern tree associated with the queries
 pub struct QueryTree<'a> {
-    pub queries: FnvHashMap<&'a [u8], Query<'a>>,
-    pub queries_len: usize,
-    pub query_strs_len: usize,
+    pub root: FnvHashMap<&'a [u8], Query<'a>>,
+    pub num_children: usize,
+    pub num_queries: usize,
 
     pub level: usize,
     pub qi: usize,
 }
 
 impl<'a> QueryTree<'a> {
-    pub fn new<S: ?Sized + AsRef<[u8]>>(query_strs: &[&'a S]) -> Result<Self> {
-        let mut queries = FnvHashMap::default();
+    pub fn new<S: ?Sized + AsRef<[u8]>>(queries: &[&'a S]) -> Result<Self> {
+        let mut root = FnvHashMap::default();
         let mut level = 0;
         let mut qi = 0;
 
-        for (ri, query_str) in query_strs.iter().enumerate() {
-            if !is_valid_query_str(query_str.as_ref()) {
+        for (ri, s) in queries.into_iter().map(|s| (*s).as_ref()).enumerate() {
+            if !is_valid_query_str(s) {
                 return Err(Error::from(ErrorKind::InvalidQuery));
             }
 
-            let (l, next_qi) = set_queries(
-                &mut queries,
-                (*query_str).as_ref(),
-                ROOT_QUERY_STR_OFFSET,
-                qi,
-                ri,
-            );
+            let (l, next_qi) = set_queries(&mut root, s, ROOT_QUERY_STR_OFFSET, qi, ri);
             level = cmp::max(level, l);
             qi = next_qi;
         }
 
-        let queries_len = queries.len();
+        let num_children = root.len();
 
         Ok(Self {
-            query_strs_len: query_strs.len(),
-            queries,
-            queries_len,
+            root,
+            num_children,
+            num_queries: queries.len(),
             level,
             qi,
         })

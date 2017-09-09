@@ -138,13 +138,13 @@ impl<'a> Pikkr<'a> {
 
         self.build_structural_indices(rec)?;
 
-        let mut results = vec![None; self.queries.query_strs_len];
+        let mut results = vec![None; self.queries.num_queries];
 
         if self.trained {
             let found = parser::speculative_parse(
                 rec,
                 &self.index,
-                &self.queries.queries,
+                &self.queries.root,
                 0,
                 rec.len() - 1,
                 0,
@@ -156,11 +156,11 @@ impl<'a> Pikkr<'a> {
                 parser::basic_parse(
                     rec,
                     &self.index,
-                    &mut self.queries.queries,
+                    &mut self.queries.root,
                     0,
                     rec.len() - 1,
                     0,
-                    self.queries.queries_len,
+                    self.queries.num_children,
                     &mut self.stats,
                     false,
                     &mut results,
@@ -171,11 +171,11 @@ impl<'a> Pikkr<'a> {
             parser::basic_parse(
                 rec,
                 &self.index,
-                &mut self.queries.queries,
+                &mut self.queries.root,
                 0,
                 rec.len() - 1,
                 0,
-                self.queries.queries_len,
+                self.queries.num_children,
                 &mut self.stats,
                 true,
                 &mut results,
