@@ -29,6 +29,7 @@ pub fn basic_parse<'a>(rec: &'a [u8], index: &[Vec<u64>], queries: &mut FnvHashM
                 stats[query.i].insert(i);
             }
             if let Some(ref mut children) = query.children {
+                let children_len = children.len();
                 basic_parse(
                     rec,
                     index,
@@ -36,7 +37,7 @@ pub fn basic_parse<'a>(rec: &'a [u8], index: &[Vec<u64>], queries: &mut FnvHashM
                     vsi,
                     vei,
                     level + 1,
-                    query.children_len,
+                    children_len,
                     stats,
                     set_stats,
                     results,
@@ -259,7 +260,6 @@ mod tests {
                 ri: 0,
                 target: true,
                 children: None,
-                children_len: 0,
             },
         );
         children.insert(
@@ -269,10 +269,8 @@ mod tests {
                 ri: 1,
                 target: true,
                 children: None,
-                children_len: 0,
             },
         );
-        let children_len = children.len();
         let mut queries = FnvHashMap::default();
         queries.insert(
             "aaa".as_bytes(),
@@ -281,7 +279,6 @@ mod tests {
                 ri: 2,
                 target: true,
                 children: None,
-                children_len: 0,
             },
         );
         queries.insert(
@@ -291,7 +288,6 @@ mod tests {
                 ri: 3,
                 target: true,
                 children: None,
-                children_len: 0,
             },
         );
         queries.insert(
@@ -301,7 +297,6 @@ mod tests {
                 ri: 4,
                 target: true,
                 children: None,
-                children_len: 0,
             },
         );
         queries.insert(
@@ -311,7 +306,6 @@ mod tests {
                 ri: 0,
                 target: false,
                 children: Some(children),
-                children_len: children_len,
             },
         );
         queries.insert(
@@ -321,7 +315,6 @@ mod tests {
                 ri: 5,
                 target: true,
                 children: None,
-                children_len: 0,
             },
         );
 

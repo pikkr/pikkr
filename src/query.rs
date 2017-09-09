@@ -13,13 +13,11 @@ pub struct Query<'a> {
     pub ri: usize,
     pub target: bool,
     pub children: Option<FnvHashMap<&'a [u8], Query<'a>>>,
-    pub children_len: usize,
 }
 
 /// A pattern tree associated with the queries
 pub struct QueryTree<'a> {
     pub root: FnvHashMap<&'a [u8], Query<'a>>,
-    pub num_children: usize,
     pub num_queries: usize,
 
     pub level: usize,
@@ -42,11 +40,8 @@ impl<'a> QueryTree<'a> {
             qi = next_qi;
         }
 
-        let num_children = root.len();
-
         Ok(Self {
             root,
-            num_children,
             num_queries: queries.len(),
             level,
             qi,
@@ -82,7 +77,6 @@ fn set_queries<'a>(queries: &mut FnvHashMap<&'a [u8], Query<'a>>, s: &'a [u8], i
                 ri: ri,
                 target: false,
                 children: None,
-                children_len: 0,
             });
             let mut children = query.children.get_or_insert(FnvHashMap::default());
             let (child_level, next_qi) = set_queries(
@@ -92,7 +86,6 @@ fn set_queries<'a>(queries: &mut FnvHashMap<&'a [u8], Query<'a>>, s: &'a [u8], i
                 if qi == query.i { qi + 1 } else { qi },
                 ri,
             );
-            query.children_len = children.len();
             return (child_level + 1, next_qi);
         }
     }
@@ -105,7 +98,6 @@ fn set_queries<'a>(queries: &mut FnvHashMap<&'a [u8], Query<'a>>, s: &'a [u8], i
                 ri: ri,
                 target: true,
                 children: None,
-                children_len: 0,
             },
         );
         return (1, qi + 1);

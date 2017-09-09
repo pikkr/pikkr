@@ -153,6 +153,7 @@ impl<'a> Pikkr<'a> {
                 &self.b_quote,
             )?;
             if !found {
+                let queries_len = self.queries.root.len();
                 parser::basic_parse(
                     rec,
                     &self.index,
@@ -160,7 +161,7 @@ impl<'a> Pikkr<'a> {
                     0,
                     rec.len() - 1,
                     0,
-                    self.queries.num_children,
+                    queries_len,
                     &mut self.stats,
                     false,
                     &mut results,
@@ -168,6 +169,7 @@ impl<'a> Pikkr<'a> {
                 )?;
             }
         } else {
+            let queries_len = self.queries.root.len();
             parser::basic_parse(
                 rec,
                 &self.index,
@@ -175,7 +177,7 @@ impl<'a> Pikkr<'a> {
                 0,
                 rec.len() - 1,
                 0,
-                self.queries.num_children,
+                queries_len,
                 &mut self.stats,
                 true,
                 &mut results,
