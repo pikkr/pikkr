@@ -24,6 +24,15 @@ pub struct Pikkr<'a> {
     queries_len: usize,
     level: usize,
 
+    b_backslash: Vec<u64>,
+    b_quote: Vec<u64>,
+    b_colon: Vec<u64>,
+    b_left: Vec<u64>,
+    b_right: Vec<u64>,
+    b_string_mask: Vec<u64>,
+
+    index: Vec<Vec<u64>>,
+
     train_num: usize,
     trained_num: usize,
     trained: bool,
@@ -51,7 +60,16 @@ impl<'a> Pikkr<'a> {
             queries_len: 0,
             level: 0,
 
-            train_num: train_num,
+            b_backslash: Vec::new(),
+            b_quote: Vec::new(),
+            b_colon: Vec::new(),
+            b_left: Vec::new(),
+            b_right: Vec::new(),
+            b_string_mask: Vec::new(),
+
+            index: Vec::new(),
+
+            train_num,
             trained_num: 0,
             trained: false,
 
@@ -73,6 +91,8 @@ impl<'a> Pikkr<'a> {
 
         p.queries_len = p.queries.len();
 
+        p.index = vec![Vec::new(); p.level];
+
         for _ in 0..qi {
             p.stats.push(FnvHashSet::default());
         }
@@ -81,21 +101,38 @@ impl<'a> Pikkr<'a> {
     }
 
     #[inline(always)]
-    fn build_structural_indices(&self, rec: &[u8]) -> Result<(Vec<Vec<u64>>, Vec<u64>)> {
+    fn build_structural_indices(&mut self, rec: &[u8]) -> Result<()> {
         let b_len = (rec.len() + 63) / 64;
-        let mut b_backslash = Vec::with_capacity(b_len);
-        let mut b_quote = Vec::with_capacity(b_len);
-        let mut b_colon = Vec::with_capacity(b_len);
-        let mut b_left = Vec::with_capacity(b_len);
-        let mut b_right = Vec::with_capacity(b_len);
+
+        self.b_backslash.clear();
+        self.b_quote.clear();
+        self.b_colon.clear();
+        self.b_left.clear();
+        self.b_right.clear();
+        self.b_string_mask.clear();
+        for b in self.index.iter_mut() {
+            b.clear();
+        }
+
+        if b_len > self.b_backslash.capacity() {
+            self.b_backslash.reserve_exact(b_len);
+            self.b_quote.reserve_exact(b_len);
+            self.b_colon.reserve_exact(b_len);
+            self.b_left.reserve_exact(b_len);
+            self.b_right.reserve_exact(b_len);
+            self.b_string_mask.reserve_exact(b_len);
+            for b in self.index.iter_mut() {
+                b.reserve_exact(b_len);
+            }
+        }
 
         index_builder::build_structural_character_bitmap(
             rec,
-            &mut b_backslash,
-            &mut b_quote,
-            &mut b_colon,
-            &mut b_left,
-            &mut b_right,
+            &mut self.b_backslash,
+            &mut self.b_quote,
+            &mut self.b_colon,
+            &mut self.b_left,
+            &mut self.b_right,
             &self.backslash,
             &self.quote,
             &self.colon,
@@ -103,22 +140,23 @@ impl<'a> Pikkr<'a> {
             &self.right_brace,
         );
 
-        index_builder::build_structural_quote_bitmap(&b_backslash, &mut b_quote);
+        index_builder::build_structural_quote_bitmap(&self.b_backslash, &mut self.b_quote);
 
-        let mut b_string_mask = Vec::with_capacity(b_len);
-        index_builder::build_string_mask_bitmap(&b_quote, &mut b_string_mask);
+        index_builder::build_string_mask_bitmap(&self.b_quote, &mut self.b_string_mask);
 
-        for i in 0..b_len {
-            let b = b_string_mask[i];
-            b_colon[i] &= b;
-            b_left[i] &= b;
-            b_right[i] &= b;
+        for (i, b) in self.b_string_mask.iter().enumerate() {
+            self.b_colon[i] &= *b;
+            self.b_left[i] &= *b;
+            self.b_right[i] &= *b;
         }
 
-        let mut index = Vec::with_capacity(self.level);
-        index_builder::build_leveled_colon_bitmap(&b_colon, &b_left, &b_right, self.level, &mut index)?;
-
-        Ok((index, b_quote))
+        index_builder::build_leveled_colon_bitmap(
+            &self.b_colon,
+            &self.b_left,
+            &self.b_right,
+            self.level,
+            &mut self.index,
+        )
     }
 
     /// Parses a JSON record and returns the result.
@@ -129,26 +167,26 @@ impl<'a> Pikkr<'a> {
             return Err(Error::from(ErrorKind::InvalidRecord));
         }
 
-        let (index, b_quote) = self.build_structural_indices(rec)?;
+        self.build_structural_indices(rec)?;
 
         let mut results = vec![None; self.query_strs_len];
 
         if self.trained {
             let found = parser::speculative_parse(
                 rec,
-                &index,
+                &self.index,
                 &self.queries,
                 0,
                 rec.len() - 1,
                 0,
                 &self.stats,
                 &mut results,
-                &b_quote,
+                &self.b_quote,
             )?;
             if !found {
                 parser::basic_parse(
                     rec,
-                    &index,
+                    &self.index,
                     &mut self.queries,
                     0,
                     rec.len() - 1,
@@ -157,13 +195,13 @@ impl<'a> Pikkr<'a> {
                     &mut self.stats,
                     false,
                     &mut results,
-                    &b_quote,
+                    &self.b_quote,
                 )?;
             }
         } else {
             parser::basic_parse(
                 rec,
-                &index,
+                &self.index,
                 &mut self.queries,
                 0,
                 rec.len() - 1,
@@ -172,7 +210,7 @@ impl<'a> Pikkr<'a> {
                 &mut self.stats,
                 true,
                 &mut results,
-                &b_quote,
+                &self.b_quote,
             )?;
             self.trained_num += 1;
             if self.trained_num >= self.train_num {
