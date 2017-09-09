@@ -11,15 +11,10 @@ pub fn basic_parse<'a>(rec: &'a [u8], index: &[Vec<u64>], queries: &mut FnvHashM
     let cp = generate_colon_positions(index, start, end, level);
     let mut vei = end;
     for i in (0..cp.len()).rev() {
-        let (fsi, fei) = match search_pre_field_indices(b_quote, if i > 0 { cp[i - 1] } else { start }, cp[i]) {
-            Ok(fsei) => fsei,
-            Err(e) => {
-                return Err(e);
-            }
-        };
+        let (fsi, fei) = search_pre_field_indices(b_quote, if i > 0 { cp[i - 1] } else { start }, cp[i])?;
         let field = &rec[fsi + 1..fei];
         if let Some(query) = queries.get_mut(field) {
-            let (vsi, vei) = match search_post_value_indices(
+            let (vsi, vei) = search_post_value_indices(
                 rec,
                 cp[i] + 1,
                 vei,
@@ -28,18 +23,13 @@ pub fn basic_parse<'a>(rec: &'a [u8], index: &[Vec<u64>], queries: &mut FnvHashM
                 } else {
                     COMMA
                 },
-            ) {
-                Ok(vsei) => vsei,
-                Err(e) => {
-                    return Err(e);
-                }
-            };
+            )?;
             found_num += 1;
             if set_stats && !stats[query.i].contains(&i) {
                 stats[query.i].insert(i);
             }
             if let Some(ref mut children) = query.children {
-                if let Err(e) = basic_parse(
+                basic_parse(
                     rec,
                     index,
                     children,
@@ -51,9 +41,7 @@ pub fn basic_parse<'a>(rec: &'a [u8], index: &[Vec<u64>], queries: &mut FnvHashM
                     set_stats,
                     results,
                     b_quote,
-                ) {
-                    return Err(e);
-                };
+                )?;
             }
             if query.target {
                 results[query.ri] = Some(&rec[vsi..vei + 1]);
@@ -76,26 +64,16 @@ pub fn speculative_parse<'a>(rec: &'a [u8], index: &[Vec<u64>], queries: &FnvHas
             if *i >= cp.len() {
                 continue;
             }
-            let (fsi, fei) = match search_pre_field_indices(b_quote, if *i > 0 { cp[*i - 1] } else { start }, cp[*i]) {
-                Ok(fsei) => fsei,
-                Err(e) => {
-                    return Err(e);
-                }
-            };
+            let (fsi, fei) = search_pre_field_indices(b_quote, if *i > 0 { cp[*i - 1] } else { start }, cp[*i])?;
             let field = &rec[fsi + 1..fei];
             if s == &field {
                 let vei = if *i < cp.len() - 1 {
-                    let nfsi = match search_pre_field_indices(b_quote, cp[*i], cp[*i + 1]) {
-                        Ok((nfsi, _)) => nfsi,
-                        Err(e) => {
-                            return Err(e);
-                        }
-                    };
+                    let (nfsi, _) = search_pre_field_indices(b_quote, cp[*i], cp[*i + 1])?;
                     nfsi - 1
                 } else {
                     end
                 };
-                let (vsi, vei) = match search_post_value_indices(
+                let (vsi, vei) = search_post_value_indices(
                     rec,
                     cp[*i] + 1,
                     vei,
@@ -104,14 +82,9 @@ pub fn speculative_parse<'a>(rec: &'a [u8], index: &[Vec<u64>], queries: &FnvHas
                     } else {
                         COMMA
                     },
-                ) {
-                    Ok(vsei) => vsei,
-                    Err(e) => {
-                        return Err(e);
-                    }
-                };
+                )?;
                 if let Some(ref children) = q.children {
-                    found = match speculative_parse(
+                    found = speculative_parse(
                         rec,
                         index,
                         children,
@@ -121,10 +94,7 @@ pub fn speculative_parse<'a>(rec: &'a [u8], index: &[Vec<u64>], queries: &FnvHas
                         stats,
                         results,
                         b_quote,
-                    ) {
-                        Ok(found) => found,
-                        Err(e) => return Err(e),
-                    };
+                    )?;
                 } else {
                     found = true;
                 }
