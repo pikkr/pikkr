@@ -35,7 +35,7 @@ impl<'a> QueryTree<'a> {
                 return Err(Error::from(ErrorKind::InvalidQuery));
             }
 
-            let (l, next_qi) = set_queries(&mut root, s, ROOT_QUERY_STR_OFFSET, qi, ri);
+            let (l, next_qi) = set_queries(&mut root, &s[ROOT_QUERY_STR_OFFSET..], qi, ri);
             level = cmp::max(level, l);
             qi = next_qi;
         }
@@ -68,10 +68,10 @@ fn is_valid_query_str(query_str: &[u8]) -> bool {
 }
 
 #[inline]
-fn set_queries<'a>(queries: &mut FnvHashMap<&'a [u8], Query<'a>>, s: &'a [u8], i: usize, qi: usize, ri: usize) -> (usize, usize) {
-    for j in i..s.len() {
+fn set_queries<'a>(queries: &mut FnvHashMap<&'a [u8], Query<'a>>, s: &'a [u8], qi: usize, ri: usize) -> (usize, usize) {
+    for j in 0..s.len() {
         if s[j] == DOT {
-            let t = &s[i..j];
+            let (t, u) = s.split_at(j);
             let query = queries.entry(t).or_insert(Query {
                 i: qi,
                 ri: ri,
@@ -81,18 +81,17 @@ fn set_queries<'a>(queries: &mut FnvHashMap<&'a [u8], Query<'a>>, s: &'a [u8], i
             let mut children = query.children.get_or_insert(FnvHashMap::default());
             let (child_level, next_qi) = set_queries(
                 &mut children,
-                s,
-                j + 1,
+                &u[1..],
                 if qi == query.i { qi + 1 } else { qi },
                 ri,
             );
             return (child_level + 1, next_qi);
         }
     }
-    let t = &s[i..];
-    if !queries.contains_key(t) {
+
+    if !queries.contains_key(s) {
         queries.insert(
-            t,
+            s,
             Query {
                 i: qi,
                 ri: ri,
@@ -100,11 +99,11 @@ fn set_queries<'a>(queries: &mut FnvHashMap<&'a [u8], Query<'a>>, s: &'a [u8], i
                 children: None,
             },
         );
-        return (1, qi + 1);
+        (1, qi + 1)
     } else {
-        queries.get_mut(t).unwrap().target = true;
+        queries.get_mut(s).unwrap().target = true;
+        (1, qi)
     }
-    (1, qi)
 }
 
 #[cfg(test)]
