@@ -110,6 +110,9 @@ impl<'a> Pikkr<'a> {
         self.b_left.clear();
         self.b_right.clear();
         self.b_string_mask.clear();
+        for b in self.index.iter_mut() {
+            b.clear();
+        }
 
         if b_len > self.b_backslash.capacity() {
             self.b_backslash.reserve_exact(b_len);
@@ -118,6 +121,9 @@ impl<'a> Pikkr<'a> {
             self.b_left.reserve_exact(b_len);
             self.b_right.reserve_exact(b_len);
             self.b_string_mask.reserve_exact(b_len);
+            for b in self.index.iter_mut() {
+                b.reserve_exact(b_len);
+            }
         }
 
         index_builder::build_structural_character_bitmap(

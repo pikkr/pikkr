@@ -1360,7 +1360,7 @@ pub fn build_string_mask_bitmap(b_quote: &[u64], b_string_mask: &mut Vec<u64>) {
 #[inline]
 pub fn build_leveled_colon_bitmap(b_colon: &[u64], b_left: &[u64], b_right: &[u64], l: usize, index: &mut Vec<Vec<u64>>) -> Result<()> {
     for b in index.iter_mut() {
-        *b = b_colon.to_owned();
+        b.extend(b_colon);
     }
     let mut s = Vec::new();
     let mut s_len = 0;
