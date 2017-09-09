@@ -1,5 +1,5 @@
 use super::bit;
-use super::error::{Error, ErrorKind};
+use super::error::ErrorKind;
 use super::result::Result;
 use x86intrin::{m256i, mm256_cmpeq_epi8, mm256_movemask_epi8, mm256_setr_epi8};
 
@@ -1377,12 +1377,7 @@ pub fn build_leveled_colon_bitmap(b_colon: &[u64], b_left: &[u64], b_right: &[u6
                 m_leftbit = bit::e(m_left);
             }
             if m_rightbit != 0 {
-                let (j, mlb) = match s.pop() {
-                    Some(v) => v,
-                    None => {
-                        return Err(Error::from(ErrorKind::InvalidRecord));
-                    }
-                };
+                let (j, mlb) = s.pop().ok_or_else(|| ErrorKind::InvalidRecord)?;
                 s_len -= 1;
                 m_leftbit = mlb;
                 if s_len > 0 {
