@@ -248,7 +248,7 @@ mod tests {
             b_right[i] &= b;
         }
         let l = 10;
-        let mut index = Vec::with_capacity(l);
+        let mut index = vec![Vec::new(); l];
         let r = index_builder::build_leveled_colon_bitmap(&b_colon, &b_left, &b_right, l, &mut index);
         assert_eq!(Ok(()), r);
         let mut children = FnvHashMap::default();

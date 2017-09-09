@@ -31,6 +31,8 @@ pub struct Pikkr<'a> {
     b_right: Vec<u64>,
     b_string_mask: Vec<u64>,
 
+    index: Vec<Vec<u64>>,
+
     train_num: usize,
     trained_num: usize,
     trained: bool,
@@ -65,7 +67,9 @@ impl<'a> Pikkr<'a> {
             b_right: Vec::new(),
             b_string_mask: Vec::new(),
 
-            train_num: train_num,
+            index: Vec::new(),
+
+            train_num,
             trained_num: 0,
             trained: false,
 
@@ -87,6 +91,8 @@ impl<'a> Pikkr<'a> {
 
         p.queries_len = p.queries.len();
 
+        p.index = vec![Vec::new(); p.level];
+
         for _ in 0..qi {
             p.stats.push(FnvHashSet::default());
         }
@@ -95,7 +101,7 @@ impl<'a> Pikkr<'a> {
     }
 
     #[inline(always)]
-    fn build_structural_indices(&mut self, rec: &[u8]) -> Result<Vec<Vec<u64>>> {
+    fn build_structural_indices(&mut self, rec: &[u8]) -> Result<()> {
         let b_len = (rec.len() + 63) / 64;
 
         self.b_backslash.clear();
@@ -138,10 +144,13 @@ impl<'a> Pikkr<'a> {
             self.b_right[i] &= *b;
         }
 
-        let mut index = Vec::with_capacity(self.level);
-        index_builder::build_leveled_colon_bitmap(&self.b_colon, &self.b_left, &self.b_right, self.level, &mut index)?;
-
-        Ok(index)
+        index_builder::build_leveled_colon_bitmap(
+            &self.b_colon,
+            &self.b_left,
+            &self.b_right,
+            self.level,
+            &mut self.index,
+        )
     }
 
     /// Parses a JSON record and returns the result.
@@ -152,14 +161,14 @@ impl<'a> Pikkr<'a> {
             return Err(Error::from(ErrorKind::InvalidRecord));
         }
 
-        let index  = self.build_structural_indices(rec)?;
+        self.build_structural_indices(rec)?;
 
         let mut results = vec![None; self.query_strs_len];
 
         if self.trained {
             let found = parser::speculative_parse(
                 rec,
-                &index,
+                &self.index,
                 &self.queries,
                 0,
                 rec.len() - 1,
@@ -171,7 +180,7 @@ impl<'a> Pikkr<'a> {
             if !found {
                 parser::basic_parse(
                     rec,
-                    &index,
+                    &self.index,
                     &mut self.queries,
                     0,
                     rec.len() - 1,
@@ -186,7 +195,7 @@ impl<'a> Pikkr<'a> {
         } else {
             parser::basic_parse(
                 rec,
-                &index,
+                &self.index,
                 &mut self.queries,
                 0,
                 rec.len() - 1,

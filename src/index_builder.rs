@@ -1358,9 +1358,9 @@ pub fn build_string_mask_bitmap(b_quote: &[u64], b_string_mask: &mut Vec<u64>) {
 }
 
 #[inline]
-pub fn build_leveled_colon_bitmap(b_colon: &[u64], b_left: &[u64], b_right: &[u64], l: usize, b: &mut Vec<Vec<u64>>) -> Result<()> {
-    for _ in 0..l {
-        b.push(b_colon.to_owned());
+pub fn build_leveled_colon_bitmap(b_colon: &[u64], b_left: &[u64], b_right: &[u64], l: usize, index: &mut Vec<Vec<u64>>) -> Result<()> {
+    for b in index.iter_mut() {
+        *b = b_colon.to_owned();
     }
     let mut s = Vec::new();
     let mut s_len = 0;
@@ -1384,12 +1384,12 @@ pub fn build_leveled_colon_bitmap(b_colon: &[u64], b_left: &[u64], b_right: &[u6
                     let upper_l = s_len - 1;
                     if upper_l < l {
                         if i == j {
-                            b[upper_l][i] &= !(m_rightbit.wrapping_sub(m_leftbit));
+                            index[upper_l][i] &= !(m_rightbit.wrapping_sub(m_leftbit));
                         } else {
-                            b[upper_l][j] &= m_leftbit.wrapping_sub(1);
-                            b[upper_l][i] &= !(m_rightbit.wrapping_sub(1));
+                            index[upper_l][j] &= m_leftbit.wrapping_sub(1);
+                            index[upper_l][i] &= !(m_rightbit.wrapping_sub(1));
                             for k in j + 1..i {
-                                b[upper_l][k] = 0
+                                index[upper_l][k] = 0
                             }
                         }
                     }
@@ -4471,10 +4471,10 @@ mod tests {
             },
         ];
         for t in test_cases {
-            let mut b = Vec::with_capacity(t.l);
-            let r = build_leveled_colon_bitmap(&t.b_colon, &t.b_left, &t.b_right, t.l, &mut b);
+            let mut index = vec![Vec::new(); t.l];
+            let r = build_leveled_colon_bitmap(&t.b_colon, &t.b_left, &t.b_right, t.l, &mut index);
             assert_eq!(Ok(()), r);
-            assert_eq!(t.want, b);
+            assert_eq!(t.want, index);
         }
     }
 }
