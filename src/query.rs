@@ -35,9 +35,8 @@ impl<'a> QueryTree<'a> {
                 return Err(Error::from(ErrorKind::InvalidQuery));
             }
 
-            let (l, next_qi) = set_queries(&mut root, &s[ROOT_QUERY_STR_OFFSET..], qi, ri);
+            let l = set_queries(&mut root, &s[ROOT_QUERY_STR_OFFSET..], &mut qi, ri);
             level = cmp::max(level, l);
-            qi = next_qi;
         }
 
         Ok(Self {
@@ -68,24 +67,22 @@ fn is_valid_query_str(query_str: &[u8]) -> bool {
 }
 
 #[inline]
-fn set_queries<'a>(queries: &mut FnvHashMap<&'a [u8], Query<'a>>, s: &'a [u8], qi: usize, ri: usize) -> (usize, usize) {
+fn set_queries<'a>(queries: &mut FnvHashMap<&'a [u8], Query<'a>>, s: &'a [u8], qi: &mut usize, ri: usize) -> usize {
     for j in 0..s.len() {
         if s[j] == DOT {
             let (t, u) = s.split_at(j);
-            let query = queries.entry(t).or_insert(Query {
-                i: qi,
-                ri: ri,
-                target: false,
-                children: None,
+            let query = queries.entry(t).or_insert_with(|| {
+                let query = Query {
+                    i: *qi,
+                    ri: ri,
+                    target: false,
+                    children: None,
+                };
+                *qi += 1;
+                query
             });
             let mut children = query.children.get_or_insert(FnvHashMap::default());
-            let (child_level, next_qi) = set_queries(
-                &mut children,
-                &u[1..],
-                if qi == query.i { qi + 1 } else { qi },
-                ri,
-            );
-            return (child_level + 1, next_qi);
+            return set_queries(&mut children, &u[1..], qi, ri) + 1;
         }
     }
 
@@ -93,17 +90,16 @@ fn set_queries<'a>(queries: &mut FnvHashMap<&'a [u8], Query<'a>>, s: &'a [u8], q
         queries.insert(
             s,
             Query {
-                i: qi,
+                i: *qi,
                 ri: ri,
-                target: true,
+                target: false,
                 children: None,
             },
         );
-        (1, qi + 1)
-    } else {
-        queries.get_mut(s).unwrap().target = true;
-        (1, qi)
+        *qi += 1;
     }
+    queries.get_mut(s).unwrap().target = true;
+    1
 }
 
 #[cfg(test)]
