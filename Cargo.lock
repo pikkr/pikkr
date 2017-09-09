@@ -1,6 +1,6 @@
 [root]
 name = "pikkr"
-version = "0.14.0"
+version = "0.14.1"
 dependencies = [
  "fnv 1.0.5 (registry+https://github.com/rust-lang/crates.io-index)",
  "x86intrin 0.4.3 (registry+https://github.com/rust-lang/crates.io-index)",
