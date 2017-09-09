@@ -67,29 +67,10 @@ fn is_valid_query_str(query_str: &[u8]) -> bool {
 
 #[inline]
 fn set_queries<'a>(queries: &mut FnvHashMap<&'a [u8], Query<'a>>, s: &'a [u8], qi: &mut usize, ri: usize) -> usize {
-    for j in 0..s.len() {
-        if s[j] == DOT {
-            let (t, u) = s.split_at(j);
-            let query = queries.entry(t).or_insert_with(|| {
-                let query = Query {
-                    i: *qi,
-                    ri: ri,
-                    target: false,
-                    children: None,
-                };
-                *qi += 1;
-                query
-            });
-            return set_queries(
-                query.children.get_or_insert(FnvHashMap::default()),
-                &u[1..],
-                qi,
-                ri,
-            ) + 1;
-        }
-    }
+    let j = s.iter().position(|&c| c == DOT).unwrap_or(s.len());
+    let (t, u) = s.split_at(j);
 
-    let query = queries.entry(s).or_insert_with(|| {
+    let query = queries.entry(t).or_insert_with(|| {
         let query = Query {
             i: *qi,
             ri: ri,
@@ -99,8 +80,15 @@ fn set_queries<'a>(queries: &mut FnvHashMap<&'a [u8], Query<'a>>, s: &'a [u8], q
         *qi += 1;
         query
     });
-    query.target = true;
-    1
+
+    if u.len() > 1 {
+        // The remaining segments are exist
+        let children = query.children.get_or_insert(FnvHashMap::default());
+        set_queries(children, &u[1..], qi, ri) + 1
+    } else {
+        query.target = true; // mark the node as a target node
+        1
+    }
 }
 
 #[cfg(test)]
