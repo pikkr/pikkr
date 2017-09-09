@@ -86,19 +86,17 @@ fn set_queries<'a>(queries: &mut FnvHashMap<&'a [u8], Query<'a>>, s: &'a [u8], q
         }
     }
 
-    if !queries.contains_key(s) {
-        queries.insert(
-            s,
-            Query {
-                i: *qi,
-                ri: ri,
-                target: false,
-                children: None,
-            },
-        );
+    let query = queries.entry(s).or_insert_with(|| {
+        let query = Query {
+            i: *qi,
+            ri: ri,
+            target: false,
+            children: None,
+        };
         *qi += 1;
-    }
-    queries.get_mut(s).unwrap().target = true;
+        query
+    });
+    query.target = true;
     1
 }
 
