@@ -80,17 +80,9 @@ impl<'a> Pikkr<'a> {
         Ok(p)
     }
 
-    /// Parses a JSON record and returns the result.
-    #[inline]
-    pub fn parse<'b, S: ?Sized + AsRef<[u8]>>(&mut self, rec: &'b S) -> Result<Vec<Option<&'b [u8]>>> {
-        let rec = rec.as_ref();
-
-        let rec_len = rec.len();
-        if rec_len == 0 {
-            return Err(Error::from(ErrorKind::InvalidRecord));
-        }
-
-        let b_len = (rec_len + 63) / 64;
+    #[inline(always)]
+    fn build_structural_indices(&self, rec: &[u8]) -> Result<(Vec<Vec<u64>>, Vec<u64>)> {
+        let b_len = (rec.len() + 63) / 64;
         let mut b_backslash = Vec::with_capacity(b_len);
         let mut b_quote = Vec::with_capacity(b_len);
         let mut b_colon = Vec::with_capacity(b_len);
@@ -124,14 +116,22 @@ impl<'a> Pikkr<'a> {
         }
 
         let mut index = Vec::with_capacity(self.level);
-        if let Err(e) = index_builder::build_leveled_colon_bitmap(&b_colon, &b_left, &b_right, self.level, &mut index) {
-            return Err(e);
-        };
+        index_builder::build_leveled_colon_bitmap(&b_colon, &b_left, &b_right, self.level, &mut index)?;
 
-        let mut results = Vec::with_capacity(self.query_strs_len);
-        for _ in 0..self.query_strs_len {
-            results.push(None);
+        Ok((index, b_quote))
+    }
+
+    /// Parses a JSON record and returns the result.
+    #[inline]
+    pub fn parse<'b, S: ?Sized + AsRef<[u8]>>(&mut self, rec: &'b S) -> Result<Vec<Option<&'b [u8]>>> {
+        let rec = rec.as_ref();
+        if rec.len() == 0 {
+            return Err(Error::from(ErrorKind::InvalidRecord));
         }
+
+        let (index, b_quote) = self.build_structural_indices(rec)?;
+
+        let mut results = vec![None; self.query_strs_len];
 
         if self.trained {
             let found = parser::speculative_parse(
@@ -139,7 +139,7 @@ impl<'a> Pikkr<'a> {
                 &index,
                 &self.queries,
                 0,
-                rec_len - 1,
+                rec.len() - 1,
                 0,
                 &self.stats,
                 &mut results,
@@ -151,7 +151,7 @@ impl<'a> Pikkr<'a> {
                     &index,
                     &mut self.queries,
                     0,
-                    rec_len - 1,
+                    rec.len() - 1,
                     0,
                     self.queries_len,
                     &mut self.stats,
@@ -166,7 +166,7 @@ impl<'a> Pikkr<'a> {
                 &index,
                 &mut self.queries,
                 0,
-                rec_len - 1,
+                rec.len() - 1,
                 0,
                 self.queries_len,
                 &mut self.stats,
