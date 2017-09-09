@@ -40,8 +40,8 @@ impl<'a> Pikkr<'a> {
     pub fn new<S: ?Sized + AsRef<[u8]>>(query_strs: &[&'a S], train_num: usize) -> Result<Pikkr<'a>> {
         let queries = QueryTree::new(query_strs)?;
 
-        let index = vec![Vec::new(); queries.level];
-        let stats = vec![Default::default(); queries.qi];
+        let index = vec![Vec::new(); queries.max_depth];
+        let stats = vec![Default::default(); queries.num_nodes];
 
         Ok(Pikkr {
             backslash: avx::mm256i(BACKSLASH as i8),
@@ -123,7 +123,7 @@ impl<'a> Pikkr<'a> {
             &self.b_colon,
             &self.b_left,
             &self.b_right,
-            self.queries.level,
+            self.queries.max_depth,
             &mut self.index,
         )
     }

@@ -19,9 +19,8 @@ pub struct Query<'a> {
 pub struct QueryTree<'a> {
     pub root: FnvHashMap<&'a [u8], Query<'a>>,
     pub num_queries: usize,
-
-    pub level: usize,
-    pub qi: usize,
+    pub max_depth: usize,
+    pub num_nodes: usize,
 }
 
 impl<'a> QueryTree<'a> {
@@ -42,8 +41,8 @@ impl<'a> QueryTree<'a> {
         Ok(Self {
             root,
             num_queries: queries.len(),
-            level,
-            qi,
+            max_depth: level,
+            num_nodes: qi,
         })
     }
 }
@@ -81,8 +80,12 @@ fn set_queries<'a>(queries: &mut FnvHashMap<&'a [u8], Query<'a>>, s: &'a [u8], q
                 *qi += 1;
                 query
             });
-            let mut children = query.children.get_or_insert(FnvHashMap::default());
-            return set_queries(&mut children, &u[1..], qi, ri) + 1;
+            return set_queries(
+                query.children.get_or_insert(FnvHashMap::default()),
+                &u[1..],
+                qi,
+                ri,
+            ) + 1;
         }
     }
 
