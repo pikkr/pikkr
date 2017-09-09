@@ -80,6 +80,7 @@ impl<'a> Pikkr<'a> {
         Ok(p)
     }
 
+    #[inline(always)]
     fn build_structural_indices(&self, rec: &[u8]) -> Result<(Vec<Vec<u64>>, Vec<u64>)> {
         let b_len = (rec.len() + 63) / 64;
         let mut b_backslash = Vec::with_capacity(b_len);
