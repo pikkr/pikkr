@@ -34,7 +34,17 @@ impl<'a> QueryTree<'a> {
                 return Err(Error::from(ErrorKind::InvalidQuery));
             }
 
-            let l = set_queries(&mut root, &s[ROOT_QUERY_STR_OFFSET..], &mut qi, ri);
+            let l = set_queries(&mut root, &s[ROOT_QUERY_STR_OFFSET..], || {
+                let query = Query {
+                    i: qi,
+                    ri,
+                    target: false,
+                    children: None,
+                };
+                qi += 1;
+                query
+            });
+
             level = cmp::max(level, l);
         }
 
@@ -66,25 +76,18 @@ fn is_valid_query_str(query_str: &[u8]) -> bool {
 }
 
 #[inline]
-fn set_queries<'a>(queries: &mut FnvHashMap<&'a [u8], Query<'a>>, s: &'a [u8], qi: &mut usize, ri: usize) -> usize {
+fn set_queries<'a, F>(queries: &mut FnvHashMap<&'a [u8], Query<'a>>, s: &'a [u8], mut factory: F) -> usize
+where
+    F: FnMut() -> Query<'a>,
+{
     let j = s.iter().position(|&c| c == DOT).unwrap_or(s.len());
     let (t, u) = s.split_at(j);
 
-    let query = queries.entry(t).or_insert_with(|| {
-        let query = Query {
-            i: *qi,
-            ri: ri,
-            target: false,
-            children: None,
-        };
-        *qi += 1;
-        query
-    });
-
+    let query = queries.entry(t).or_insert_with(&mut factory);
     if u.len() > 1 {
         // The remaining segments are exist
         let children = query.children.get_or_insert(FnvHashMap::default());
-        set_queries(children, &u[1..], qi, ri) + 1
+        set_queries(children, &u[1..], factory) + 1
     } else {
         query.target = true; // mark the node as a target node
         1
