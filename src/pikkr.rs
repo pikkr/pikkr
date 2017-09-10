@@ -25,6 +25,8 @@ pub struct Pikkr<'a> {
     b_right: Vec<u64>,
     b_string_mask: Vec<u64>,
 
+    s_left: Vec<(usize, u64)>,
+
     index: Vec<Vec<u64>>,
 
     train_num: usize,
@@ -58,6 +60,8 @@ impl<'a> Pikkr<'a> {
             b_left: Vec::new(),
             b_right: Vec::new(),
             b_string_mask: Vec::new(),
+
+            s_left: Vec::new(),
 
             index,
 
@@ -124,6 +128,7 @@ impl<'a> Pikkr<'a> {
             &self.b_left,
             &self.b_right,
             self.queries.max_depth,
+            &mut self.s_left,
             &mut self.index,
         )
     }
