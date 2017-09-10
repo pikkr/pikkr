@@ -1,7 +1,126 @@
+use super::avx;
 use super::bit;
 use super::error::ErrorKind;
 use super::result::Result;
+use super::utf8::{BACKSLASH, COLON, LEFT_BRACE, QUOTE, RIGHT_BRACE};
 use x86intrin::{m256i, mm256_cmpeq_epi8, mm256_movemask_epi8, mm256_setr_epi8};
+
+
+#[derive(Debug)]
+pub struct IndexBuilder {
+    backslash: m256i,
+    quote: m256i,
+    colon: m256i,
+    left_brace: m256i,
+    right_brace: m256i,
+
+    b_backslash: Vec<u64>,
+    b_quote: Vec<u64>,
+    b_colon: Vec<u64>,
+    b_left: Vec<u64>,
+    b_right: Vec<u64>,
+    b_string_mask: Vec<u64>,
+
+    s_left: Vec<(usize, u64)>,
+
+    index: Vec<Vec<u64>>,
+    depth: usize,
+}
+
+impl IndexBuilder {
+    pub fn new(depth: usize) -> Self {
+        let index = vec![Vec::new(); depth];
+
+        Self {
+            backslash: avx::mm256i(BACKSLASH as i8),
+            quote: avx::mm256i(QUOTE as i8),
+            colon: avx::mm256i(COLON as i8),
+            left_brace: avx::mm256i(LEFT_BRACE as i8),
+            right_brace: avx::mm256i(RIGHT_BRACE as i8),
+
+            b_backslash: Vec::new(),
+            b_quote: Vec::new(),
+            b_colon: Vec::new(),
+            b_left: Vec::new(),
+            b_right: Vec::new(),
+            b_string_mask: Vec::new(),
+
+            s_left: Vec::new(),
+
+            index,
+            depth,
+        }
+    }
+
+    #[inline(always)]
+    pub fn build_structural_indices(&mut self, rec: &[u8]) -> Result<()> {
+        let b_len = (rec.len() + 63) / 64;
+
+        self.b_backslash.clear();
+        self.b_quote.clear();
+        self.b_colon.clear();
+        self.b_left.clear();
+        self.b_right.clear();
+        self.b_string_mask.clear();
+        for b in &mut self.index {
+            b.clear();
+        }
+
+        if b_len > self.b_backslash.capacity() {
+            self.b_backslash.reserve_exact(b_len);
+            self.b_quote.reserve_exact(b_len);
+            self.b_colon.reserve_exact(b_len);
+            self.b_left.reserve_exact(b_len);
+            self.b_right.reserve_exact(b_len);
+            self.b_string_mask.reserve_exact(b_len);
+            for b in self.index.iter_mut() {
+                b.reserve_exact(b_len);
+            }
+        }
+
+        build_structural_character_bitmap(
+            rec,
+            &mut self.b_backslash,
+            &mut self.b_quote,
+            &mut self.b_colon,
+            &mut self.b_left,
+            &mut self.b_right,
+            &self.backslash,
+            &self.quote,
+            &self.colon,
+            &self.left_brace,
+            &self.right_brace,
+        );
+
+        build_structural_quote_bitmap(&self.b_backslash, &mut self.b_quote);
+
+        build_string_mask_bitmap(&self.b_quote, &mut self.b_string_mask);
+
+        for (i, b) in self.b_string_mask.iter().enumerate() {
+            self.b_colon[i] &= *b;
+            self.b_left[i] &= *b;
+            self.b_right[i] &= *b;
+        }
+
+        build_leveled_colon_bitmap(
+            &self.b_colon,
+            &self.b_left,
+            &self.b_right,
+            self.depth,
+            &mut self.s_left,
+            &mut self.index,
+        )
+    }
+
+    pub fn index(&self) -> &[Vec<u64>] {
+        &self.index
+    }
+
+    pub fn b_quote(&self) -> &[u64] {
+        &self.b_quote
+    }
+}
+
 
 #[inline]
 pub fn build_structural_character_bitmap(s: &[u8], b_backslash: &mut Vec<u64>, b_quote: &mut Vec<u64>, b_colon: &mut Vec<u64>, b_left: &mut Vec<u64>, b_right: &mut Vec<u64>, m_backslash: &m256i, m_quote: &m256i, m_colon: &m256i, m_left: &m256i, m_right: &m256i) {

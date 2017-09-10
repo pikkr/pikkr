@@ -13,13 +13,13 @@ pub fn basic_parse<'a>(
     start: usize,
     end: usize,
     level: usize,
-    query_num: usize,
     stats: &mut Vec<FnvHashSet<usize>>,
     set_stats: bool,
     results: &mut Vec<Option<&'a [u8]>>,
     b_quote: &[u64],
     colon_positions: &mut Vec<Vec<usize>>,
 ) -> Result<()> {
+    let query_num = queries.len();
     let mut found_num = 0;
     generate_colon_positions(index, start, end, level, colon_positions);
     let mut vei = end;
@@ -47,7 +47,6 @@ pub fn basic_parse<'a>(
                 stats[query.i].insert(i);
             }
             if let Some(ref mut children) = query.children {
-                let children_len = children.len();
                 basic_parse(
                     rec,
                     index,
@@ -55,7 +54,6 @@ pub fn basic_parse<'a>(
                     vsi,
                     vei,
                     level + 1,
-                    children_len,
                     stats,
                     set_stats,
                     results,
@@ -352,8 +350,6 @@ mod tests {
             },
         );
 
-        let queries_len = queries.len();
-
         let mut stats = vec![
             FnvHashSet::default(),
             FnvHashSet::default(),
@@ -373,7 +369,6 @@ mod tests {
             0,
             json_rec.len() - 1,
             0,
-            queries_len,
             &mut stats,
             true,
             &mut results,
