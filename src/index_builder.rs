@@ -127,8 +127,8 @@ pub fn build_structural_character_bitmap(s: &[u8], b_backslash: &mut Vec<u64>, b
     let n = s.len();
     let mut i = 0;
     while i + 63 < n {
-        let s1 = unsafe { avx::u8_to_m256i(s, i as isize) };
-        let s2 = unsafe { avx::u8_to_m256i(s, (i + 32) as isize) };
+        let s1 = unsafe { avx::u8_to_m256i(s, i) };
+        let s2 = unsafe { avx::u8_to_m256i(s, i + 32) };
 
         b_backslash.push(mbitmap(&s1, &s2, m_backslash));
         b_quote.push(mbitmap(&s1, &s2, m_quote));
@@ -140,8 +140,8 @@ pub fn build_structural_character_bitmap(s: &[u8], b_backslash: &mut Vec<u64>, b
     }
 
     if i + 32 < n {
-        let s1 = unsafe { avx::u8_to_m256i(s, i as isize) };
-        let s2 = avx::u8_to_m256i_rest(s, i + 32);
+        let s1 = unsafe { avx::u8_to_m256i(s, i) };
+        let s2 = unsafe { avx::u8_to_m256i_rest(s, i + 32) };
 
         b_backslash.push(mbitmap(&s1, &s2, m_backslash));
         b_quote.push(mbitmap(&s1, &s2, m_quote));
@@ -149,7 +149,7 @@ pub fn build_structural_character_bitmap(s: &[u8], b_backslash: &mut Vec<u64>, b
         b_left.push(mbitmap(&s1, &s2, m_left));
         b_right.push(mbitmap(&s1, &s2, m_right));
     } else if i + 32 == n {
-        let s1 = unsafe { avx::u8_to_m256i(s, i as isize) };
+        let s1 = unsafe { avx::u8_to_m256i(s, i) };
 
         b_backslash.push(mbitmap_partial(&s1, m_backslash));
         b_quote.push(mbitmap_partial(&s1, m_quote));
@@ -157,7 +157,7 @@ pub fn build_structural_character_bitmap(s: &[u8], b_backslash: &mut Vec<u64>, b
         b_left.push(mbitmap_partial(&s1, m_left));
         b_right.push(mbitmap_partial(&s1, m_right));
     } else if i < n {
-        let s1 = avx::u8_to_m256i_rest(s, i);
+        let s1 = unsafe { avx::u8_to_m256i_rest(s, i) };
 
         b_backslash.push(mbitmap_partial(&s1, m_backslash));
         b_quote.push(mbitmap_partial(&s1, m_quote));
