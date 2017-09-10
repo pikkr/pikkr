@@ -1,33 +1,14 @@
-use super::avx;
 use super::error::{Error, ErrorKind};
-use super::index_builder;
+use super::index_builder::IndexBuilder;
 use super::parser;
 use super::query::QueryTree;
 use super::result::Result;
-use super::utf8::{BACKSLASH, COLON, LEFT_BRACE, QUOTE, RIGHT_BRACE};
 use fnv::FnvHashSet;
-use x86intrin::m256i;
 
 /// JSON parser which picks up values directly without performing tokenization
 pub struct Pikkr<'a> {
-    backslash: m256i,
-    quote: m256i,
-    colon: m256i,
-    left_brace: m256i,
-    right_brace: m256i,
-
     queries: QueryTree<'a>,
-
-    b_backslash: Vec<u64>,
-    b_quote: Vec<u64>,
-    b_colon: Vec<u64>,
-    b_left: Vec<u64>,
-    b_right: Vec<u64>,
-    b_string_mask: Vec<u64>,
-
-    s_left: Vec<(usize, u64)>,
-
-    index: Vec<Vec<u64>>,
+    index_builder: IndexBuilder,
 
     colon_positions: Vec<Vec<usize>>,
 
@@ -44,29 +25,13 @@ impl<'a> Pikkr<'a> {
     pub fn new<S: ?Sized + AsRef<[u8]>>(query_strs: &[&'a S], train_num: usize) -> Result<Pikkr<'a>> {
         let queries = QueryTree::new(query_strs)?;
 
-        let index = vec![Vec::new(); queries.max_depth];
+        let index_builder = IndexBuilder::new(queries.max_depth);
         let colon_positions = vec![Vec::new(); queries.max_depth];
         let stats = vec![Default::default(); queries.num_nodes];
 
         Ok(Pikkr {
-            backslash: avx::mm256i(BACKSLASH as i8),
-            quote: avx::mm256i(QUOTE as i8),
-            colon: avx::mm256i(COLON as i8),
-            left_brace: avx::mm256i(LEFT_BRACE as i8),
-            right_brace: avx::mm256i(RIGHT_BRACE as i8),
-
             queries,
-
-            b_backslash: Vec::new(),
-            b_quote: Vec::new(),
-            b_colon: Vec::new(),
-            b_left: Vec::new(),
-            b_right: Vec::new(),
-            b_string_mask: Vec::new(),
-
-            s_left: Vec::new(),
-
-            index,
+            index_builder,
 
             colon_positions,
 
@@ -78,66 +43,6 @@ impl<'a> Pikkr<'a> {
         })
     }
 
-    #[inline(always)]
-    fn build_structural_indices(&mut self, rec: &[u8]) -> Result<()> {
-        let b_len = (rec.len() + 63) / 64;
-
-        self.b_backslash.clear();
-        self.b_quote.clear();
-        self.b_colon.clear();
-        self.b_left.clear();
-        self.b_right.clear();
-        self.b_string_mask.clear();
-        for b in self.index.iter_mut() {
-            b.clear();
-        }
-
-        if b_len > self.b_backslash.capacity() {
-            self.b_backslash.reserve_exact(b_len);
-            self.b_quote.reserve_exact(b_len);
-            self.b_colon.reserve_exact(b_len);
-            self.b_left.reserve_exact(b_len);
-            self.b_right.reserve_exact(b_len);
-            self.b_string_mask.reserve_exact(b_len);
-            for b in self.index.iter_mut() {
-                b.reserve_exact(b_len);
-            }
-        }
-
-        index_builder::build_structural_character_bitmap(
-            rec,
-            &mut self.b_backslash,
-            &mut self.b_quote,
-            &mut self.b_colon,
-            &mut self.b_left,
-            &mut self.b_right,
-            &self.backslash,
-            &self.quote,
-            &self.colon,
-            &self.left_brace,
-            &self.right_brace,
-        );
-
-        index_builder::build_structural_quote_bitmap(&self.b_backslash, &mut self.b_quote);
-
-        index_builder::build_string_mask_bitmap(&self.b_quote, &mut self.b_string_mask);
-
-        for (i, b) in self.b_string_mask.iter().enumerate() {
-            self.b_colon[i] &= *b;
-            self.b_left[i] &= *b;
-            self.b_right[i] &= *b;
-        }
-
-        index_builder::build_leveled_colon_bitmap(
-            &self.b_colon,
-            &self.b_left,
-            &self.b_right,
-            self.queries.max_depth,
-            &mut self.s_left,
-            &mut self.index,
-        )
-    }
-
     /// Parses a JSON record and returns the result.
     #[inline]
     pub fn parse<'b, S: ?Sized + AsRef<[u8]>>(&mut self, rec: &'b S) -> Result<Vec<Option<&'b [u8]>>> {
@@ -146,28 +51,28 @@ impl<'a> Pikkr<'a> {
             return Err(Error::from(ErrorKind::InvalidRecord));
         }
 
-        self.build_structural_indices(rec)?;
+        self.index_builder.build_structural_indices(rec)?;
 
         let mut results = vec![None; self.queries.num_queries];
 
         if self.trained {
             let found = parser::speculative_parse(
                 rec,
-                &self.index,
+                &self.index_builder.index(),
                 &self.queries.root,
                 0,
                 rec.len() - 1,
                 0,
                 &self.stats,
                 &mut results,
-                &self.b_quote,
+                &self.index_builder.b_quote(),
                 &mut self.colon_positions,
             )?;
             if !found {
                 let queries_len = self.queries.root.len();
                 parser::basic_parse(
                     rec,
-                    &self.index,
+                    &self.index_builder.index(),
                     &mut self.queries.root,
                     0,
                     rec.len() - 1,
@@ -176,7 +81,7 @@ impl<'a> Pikkr<'a> {
                     &mut self.stats,
                     false,
                     &mut results,
-                    &self.b_quote,
+                    &self.index_builder.b_quote(),
                     &mut self.colon_positions,
                 )?;
             }
@@ -184,7 +89,7 @@ impl<'a> Pikkr<'a> {
             let queries_len = self.queries.root.len();
             parser::basic_parse(
                 rec,
-                &self.index,
+                &self.index_builder.index(),
                 &mut self.queries.root,
                 0,
                 rec.len() - 1,
@@ -193,7 +98,7 @@ impl<'a> Pikkr<'a> {
                 &mut self.stats,
                 true,
                 &mut results,
-                &self.b_quote,
+                &self.index_builder.b_quote(),
                 &mut self.colon_positions,
             )?;
             self.trained_num += 1;
