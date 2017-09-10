@@ -2,14 +2,11 @@ use super::avx;
 use super::error::{Error, ErrorKind};
 use super::index_builder;
 use super::parser;
-use super::query::Query;
+use super::query::QueryTree;
 use super::result::Result;
-use super::utf8::{BACKSLASH, COLON, DOLLAR, DOT, LEFT_BRACE, QUOTE, RIGHT_BRACE};
-use std::cmp;
-use fnv::{FnvHashMap, FnvHashSet};
+use super::utf8::{BACKSLASH, COLON, LEFT_BRACE, QUOTE, RIGHT_BRACE};
+use fnv::FnvHashSet;
 use x86intrin::m256i;
-
-const ROOT_QUERY_STR_OFFSET: usize = 2;
 
 /// JSON parser which picks up values directly without performing tokenization
 pub struct Pikkr<'a> {
@@ -19,10 +16,7 @@ pub struct Pikkr<'a> {
     left_brace: m256i,
     right_brace: m256i,
 
-    query_strs_len: usize,
-    queries: FnvHashMap<&'a [u8], Query<'a>>,
-    queries_len: usize,
-    level: usize,
+    queries: QueryTree<'a>,
 
     b_backslash: Vec<u64>,
     b_quote: Vec<u64>,
@@ -44,21 +38,19 @@ impl<'a> Pikkr<'a> {
     /// Creates a JSON parser and returns it.
     #[inline]
     pub fn new<S: ?Sized + AsRef<[u8]>>(query_strs: &[&'a S], train_num: usize) -> Result<Pikkr<'a>> {
-        if query_strs.iter().any(|s| !is_valid_query_str(s.as_ref())) {
-            return Err(Error::from(ErrorKind::InvalidQuery));
-        }
+        let queries = QueryTree::new(query_strs)?;
 
-        let mut p = Pikkr {
+        let index = vec![Vec::new(); queries.max_depth];
+        let stats = vec![Default::default(); queries.num_nodes];
+
+        Ok(Pikkr {
             backslash: avx::mm256i(BACKSLASH as i8),
             quote: avx::mm256i(QUOTE as i8),
             colon: avx::mm256i(COLON as i8),
             left_brace: avx::mm256i(LEFT_BRACE as i8),
             right_brace: avx::mm256i(RIGHT_BRACE as i8),
 
-            query_strs_len: query_strs.len(),
-            queries: FnvHashMap::default(),
-            queries_len: 0,
-            level: 0,
+            queries,
 
             b_backslash: Vec::new(),
             b_quote: Vec::new(),
@@ -67,37 +59,14 @@ impl<'a> Pikkr<'a> {
             b_right: Vec::new(),
             b_string_mask: Vec::new(),
 
-            index: Vec::new(),
+            index,
 
             train_num,
             trained_num: 0,
             trained: false,
 
-            stats: Vec::new(),
-        };
-
-        let mut qi = 0;
-        for (ri, query_str) in query_strs.iter().enumerate() {
-            let (level, next_qi) = set_queries(
-                &mut p.queries,
-                (*query_str).as_ref(),
-                ROOT_QUERY_STR_OFFSET,
-                qi,
-                ri,
-            );
-            p.level = cmp::max(p.level, level);
-            qi = next_qi;
-        }
-
-        p.queries_len = p.queries.len();
-
-        p.index = vec![Vec::new(); p.level];
-
-        for _ in 0..qi {
-            p.stats.push(FnvHashSet::default());
-        }
-
-        Ok(p)
+            stats,
+        })
     }
 
     #[inline(always)]
@@ -154,7 +123,7 @@ impl<'a> Pikkr<'a> {
             &self.b_colon,
             &self.b_left,
             &self.b_right,
-            self.level,
+            self.queries.max_depth,
             &mut self.index,
         )
     }
@@ -169,13 +138,13 @@ impl<'a> Pikkr<'a> {
 
         self.build_structural_indices(rec)?;
 
-        let mut results = vec![None; self.query_strs_len];
+        let mut results = vec![None; self.queries.num_queries];
 
         if self.trained {
             let found = parser::speculative_parse(
                 rec,
                 &self.index,
-                &self.queries,
+                &self.queries.root,
                 0,
                 rec.len() - 1,
                 0,
@@ -184,14 +153,15 @@ impl<'a> Pikkr<'a> {
                 &self.b_quote,
             )?;
             if !found {
+                let queries_len = self.queries.root.len();
                 parser::basic_parse(
                     rec,
                     &self.index,
-                    &mut self.queries,
+                    &mut self.queries.root,
                     0,
                     rec.len() - 1,
                     0,
-                    self.queries_len,
+                    queries_len,
                     &mut self.stats,
                     false,
                     &mut results,
@@ -199,14 +169,15 @@ impl<'a> Pikkr<'a> {
                 )?;
             }
         } else {
+            let queries_len = self.queries.root.len();
             parser::basic_parse(
                 rec,
                 &self.index,
-                &mut self.queries,
+                &mut self.queries.root,
                 0,
                 rec.len() - 1,
                 0,
-                self.queries_len,
+                queries_len,
                 &mut self.stats,
                 true,
                 &mut results,
@@ -220,68 +191,6 @@ impl<'a> Pikkr<'a> {
 
         Ok(results)
     }
-}
-
-
-#[inline]
-fn is_valid_query_str(query_str: &[u8]) -> bool {
-    if query_str.len() < ROOT_QUERY_STR_OFFSET + 1 || query_str[0] != DOLLAR || query_str[1] != DOT {
-        return false;
-    }
-    let mut s = ROOT_QUERY_STR_OFFSET - 1;
-    for i in s + 1..query_str.len() {
-        if query_str[i] != DOT {
-            continue;
-        }
-        if i == s + 1 || i == query_str.len() - 1 {
-            return false;
-        }
-        s = i;
-    }
-    true
-}
-
-#[inline]
-fn set_queries<'a>(queries: &mut FnvHashMap<&'a [u8], Query<'a>>, s: &'a [u8], i: usize, qi: usize, ri: usize) -> (usize, usize) {
-    for j in i..s.len() {
-        if s[j] == DOT {
-            let t = &s[i..j];
-            let query = queries.entry(t).or_insert(Query {
-                i: qi,
-                ri: ri,
-                target: false,
-                children: None,
-                children_len: 0,
-            });
-            let mut children = query.children.get_or_insert(FnvHashMap::default());
-            let (child_level, next_qi) = set_queries(
-                &mut children,
-                s,
-                j + 1,
-                if qi == query.i { qi + 1 } else { qi },
-                ri,
-            );
-            query.children_len = children.len();
-            return (child_level + 1, next_qi);
-        }
-    }
-    let t = &s[i..];
-    if !queries.contains_key(t) {
-        queries.insert(
-            t,
-            Query {
-                i: qi,
-                ri: ri,
-                target: true,
-                children: None,
-                children_len: 0,
-            },
-        );
-        return (1, qi + 1);
-    } else {
-        queries.get_mut(t).unwrap().target = true;
-    }
-    (1, qi)
 }
 
 #[cfg(test)]
@@ -498,68 +407,6 @@ mod tests {
         ];
         for t in test_cases {
             let got = p.parse(t.rec.as_bytes());
-            assert_eq!(t.want, got);
-        }
-    }
-
-    #[test]
-    fn test_is_valid_query_str() {
-        struct TestCase<'a> {
-            query_str: &'a str,
-            want: bool,
-        }
-        let test_cases = vec![
-            TestCase {
-                query_str: "",
-                want: false,
-            },
-            TestCase {
-                query_str: "$",
-                want: false,
-            },
-            TestCase {
-                query_str: "$.",
-                want: false,
-            },
-            TestCase {
-                query_str: "$..",
-                want: false,
-            },
-            TestCase {
-                query_str: "a.a",
-                want: false,
-            },
-            TestCase {
-                query_str: "$aa",
-                want: false,
-            },
-            TestCase {
-                query_str: "$.a",
-                want: true,
-            },
-            TestCase {
-                query_str: "$.aaaa",
-                want: true,
-            },
-            TestCase {
-                query_str: "$.aaaa.",
-                want: false,
-            },
-            TestCase {
-                query_str: "$.aaaa.b",
-                want: true,
-            },
-            TestCase {
-                query_str: "$.aaaa.bbbb",
-                want: true,
-            },
-            TestCase {
-                query_str: "$.aaaa.bbbb.",
-                want: false,
-            },
-        ];
-        for t in test_cases {
-            let got = is_valid_query_str(t.query_str.as_bytes());
             assert_eq!(t.want, got);
         }
     }
