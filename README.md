@@ -52,7 +52,7 @@ rustc 1.22.0-nightly (d93036a04 2017-09-07)
 
 * [serde_json](https://crates.io/crates/serde_json) 1.0.3
 * [json](https://crates.io/crates/json) 0.11.9
-* [pikkr](https://crates.io/crates/pikkr) 0.14.0
+* [pikkr](https://crates.io/crates/pikkr) 0.16.0
 
 ### JSON Data
 
