@@ -38,41 +38,45 @@ pub fn mm256i(i: i8) -> m256i {
     )
 }
 
+/// Create a value of `m256i` from the slice of bytes.
+///
+/// # Safety
+/// This function guarantees the safety only if the length of `s` is greater than or equal to `i + 32`.
 #[inline(always)]
-pub fn u8_to_m256i(s: &[u8], i: usize) -> m256i {
+pub unsafe fn u8_to_m256i(s: &[u8], i: isize) -> m256i {
     mm256_setr_epi8(
-        s[i] as i8,
-        s[i + 1] as i8,
-        s[i + 2] as i8,
-        s[i + 3] as i8,
-        s[i + 4] as i8,
-        s[i + 5] as i8,
-        s[i + 6] as i8,
-        s[i + 7] as i8,
-        s[i + 8] as i8,
-        s[i + 9] as i8,
-        s[i + 10] as i8,
-        s[i + 11] as i8,
-        s[i + 12] as i8,
-        s[i + 13] as i8,
-        s[i + 14] as i8,
-        s[i + 15] as i8,
-        s[i + 16] as i8,
-        s[i + 17] as i8,
-        s[i + 18] as i8,
-        s[i + 19] as i8,
-        s[i + 20] as i8,
-        s[i + 21] as i8,
-        s[i + 22] as i8,
-        s[i + 23] as i8,
-        s[i + 24] as i8,
-        s[i + 25] as i8,
-        s[i + 26] as i8,
-        s[i + 27] as i8,
-        s[i + 28] as i8,
-        s[i + 29] as i8,
-        s[i + 30] as i8,
-        s[i + 31] as i8,
+        *s.as_ptr().offset(i + 0) as i8,
+        *s.as_ptr().offset(i + 1) as i8,
+        *s.as_ptr().offset(i + 2) as i8,
+        *s.as_ptr().offset(i + 3) as i8,
+        *s.as_ptr().offset(i + 4) as i8,
+        *s.as_ptr().offset(i + 5) as i8,
+        *s.as_ptr().offset(i + 6) as i8,
+        *s.as_ptr().offset(i + 7) as i8,
+        *s.as_ptr().offset(i + 8) as i8,
+        *s.as_ptr().offset(i + 9) as i8,
+        *s.as_ptr().offset(i + 10) as i8,
+        *s.as_ptr().offset(i + 11) as i8,
+        *s.as_ptr().offset(i + 12) as i8,
+        *s.as_ptr().offset(i + 13) as i8,
+        *s.as_ptr().offset(i + 14) as i8,
+        *s.as_ptr().offset(i + 15) as i8,
+        *s.as_ptr().offset(i + 16) as i8,
+        *s.as_ptr().offset(i + 17) as i8,
+        *s.as_ptr().offset(i + 18) as i8,
+        *s.as_ptr().offset(i + 19) as i8,
+        *s.as_ptr().offset(i + 20) as i8,
+        *s.as_ptr().offset(i + 21) as i8,
+        *s.as_ptr().offset(i + 22) as i8,
+        *s.as_ptr().offset(i + 23) as i8,
+        *s.as_ptr().offset(i + 24) as i8,
+        *s.as_ptr().offset(i + 25) as i8,
+        *s.as_ptr().offset(i + 26) as i8,
+        *s.as_ptr().offset(i + 27) as i8,
+        *s.as_ptr().offset(i + 28) as i8,
+        *s.as_ptr().offset(i + 29) as i8,
+        *s.as_ptr().offset(i + 30) as i8,
+        *s.as_ptr().offset(i + 31) as i8,
     )
 }
 
