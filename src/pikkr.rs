@@ -78,7 +78,6 @@ impl<'a> Pikkr<'a> {
             &mut self.colon_positions,
         )?;
         if !found {
-            let queries_len = self.queries.root.len();
             parser::basic_parse(
                 rec,
                 &self.index_builder.index(),
@@ -86,7 +85,6 @@ impl<'a> Pikkr<'a> {
                 0,
                 rec.len() - 1,
                 0,
-                queries_len,
                 &mut self.stats,
                 false,
                 &mut results,
@@ -99,7 +97,6 @@ impl<'a> Pikkr<'a> {
 
     fn basic_parse<'b>(&mut self, rec: &'b [u8]) -> Result<Vec<Option<&'b [u8]>>> {
         let mut results = vec![None; self.queries.num_queries];
-        let queries_len = self.queries.root.len();
         parser::basic_parse(
             rec,
             &self.index_builder.index(),
@@ -107,7 +104,6 @@ impl<'a> Pikkr<'a> {
             0,
             rec.len() - 1,
             0,
-            queries_len,
             &mut self.stats,
             true,
             &mut results,
