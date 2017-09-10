@@ -250,7 +250,8 @@ mod tests {
         }
         let l = 10;
         let mut index = vec![Vec::new(); l];
-        let r = index_builder::build_leveled_colon_bitmap(&b_colon, &b_left, &b_right, l, &mut index);
+        let mut s_left = Vec::new();
+        let r = index_builder::build_leveled_colon_bitmap(&b_colon, &b_left, &b_right, l, &mut s_left, &mut index);
         assert_eq!(Ok(()), r);
         let mut children = FnvHashMap::default();
         children.insert(

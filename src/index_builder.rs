@@ -1358,12 +1358,11 @@ pub fn build_string_mask_bitmap(b_quote: &[u64], b_string_mask: &mut Vec<u64>) {
 }
 
 #[inline]
-pub fn build_leveled_colon_bitmap(b_colon: &[u64], b_left: &[u64], b_right: &[u64], l: usize, index: &mut Vec<Vec<u64>>) -> Result<()> {
+pub fn build_leveled_colon_bitmap(b_colon: &[u64], b_left: &[u64], b_right: &[u64], l: usize, s_left: &mut Vec<(usize, u64)>, index: &mut Vec<Vec<u64>>) -> Result<()> {
     for b in index.iter_mut() {
         b.extend(b_colon);
     }
-    let mut s = Vec::new();
-    let mut s_len = 0;
+    s_left.clear();
     for i in 0..b_right.len() {
         let mut m_left = b_left[i];
         let mut m_right = b_right[i];
@@ -1371,17 +1370,15 @@ pub fn build_leveled_colon_bitmap(b_colon: &[u64], b_left: &[u64], b_right: &[u6
             let m_rightbit = bit::e(m_right);
             let mut m_leftbit = bit::e(m_left);
             while m_leftbit != 0 && (m_rightbit == 0 || m_leftbit < m_rightbit) {
-                s.push((i, m_leftbit));
-                s_len += 1;
+                s_left.push((i, m_leftbit));
                 m_left = bit::r(m_left);
                 m_leftbit = bit::e(m_left);
             }
             if m_rightbit != 0 {
-                let (j, mlb) = s.pop().ok_or_else(|| ErrorKind::InvalidRecord)?;
-                s_len -= 1;
+                let (j, mlb) = s_left.pop().ok_or_else(|| ErrorKind::InvalidRecord)?;
                 m_leftbit = mlb;
-                if s_len > 0 {
-                    let upper_l = s_len - 1;
+                if s_left.len() > 0 {
+                    let upper_l = s_left.len() - 1;
                     if upper_l < l {
                         if i == j {
                             index[upper_l][i] &= !(m_rightbit.wrapping_sub(m_leftbit));
@@ -4472,7 +4469,15 @@ mod tests {
         ];
         for t in test_cases {
             let mut index = vec![Vec::new(); t.l];
-            let r = build_leveled_colon_bitmap(&t.b_colon, &t.b_left, &t.b_right, t.l, &mut index);
+            let mut s_left = Vec::new();
+            let r = build_leveled_colon_bitmap(
+                &t.b_colon,
+                &t.b_left,
+                &t.b_right,
+                t.l,
+                &mut s_left,
+                &mut index,
+            );
             assert_eq!(Ok(()), r);
             assert_eq!(t.want, index);
         }
