@@ -10,13 +10,12 @@ pub struct Pikkr<'a> {
     queries: QueryTree<'a>,
     index_builder: IndexBuilder,
 
+    stats: Vec<FnvHashSet<usize>>,
     colon_positions: Vec<Vec<usize>>,
 
     train_num: usize,
     trained_num: usize,
     trained: bool,
-
-    stats: Vec<FnvHashSet<usize>>,
 }
 
 impl<'a> Pikkr<'a> {
@@ -33,13 +32,12 @@ impl<'a> Pikkr<'a> {
             queries,
             index_builder,
 
+            stats,
             colon_positions,
 
             train_num,
             trained_num: 0,
             trained: false,
-
-            stats,
         })
     }
 
@@ -53,39 +51,33 @@ impl<'a> Pikkr<'a> {
 
         self.index_builder.build_structural_indices(rec)?;
 
-        let mut results = vec![None; self.queries.num_queries];
-
         if self.trained {
-            let found = parser::speculative_parse(
-                rec,
-                &self.index_builder.index(),
-                &self.queries.root,
-                0,
-                rec.len() - 1,
-                0,
-                &self.stats,
-                &mut results,
-                &self.index_builder.b_quote(),
-                &mut self.colon_positions,
-            )?;
-            if !found {
-                let queries_len = self.queries.root.len();
-                parser::basic_parse(
-                    rec,
-                    &self.index_builder.index(),
-                    &mut self.queries.root,
-                    0,
-                    rec.len() - 1,
-                    0,
-                    queries_len,
-                    &mut self.stats,
-                    false,
-                    &mut results,
-                    &self.index_builder.b_quote(),
-                    &mut self.colon_positions,
-                )?;
-            }
+            self.speculative_parse(rec)
         } else {
+            let results = self.basic_parse(rec)?;
+            self.trained_num += 1;
+            if self.trained_num >= self.train_num {
+                self.trained = true;
+            }
+            Ok(results)
+        }
+    }
+
+    fn speculative_parse<'b>(&mut self, rec: &'b [u8]) -> Result<Vec<Option<&'b [u8]>>> {
+        let mut results = vec![None; self.queries.num_queries];
+        let found = parser::speculative_parse(
+            rec,
+            &self.index_builder.index(),
+            &self.queries.root,
+            0,
+            rec.len() - 1,
+            0,
+            &self.stats,
+            &mut results,
+            &self.index_builder.b_quote(),
+            &mut self.colon_positions,
+        )?;
+        if !found {
             let queries_len = self.queries.root.len();
             parser::basic_parse(
                 rec,
@@ -96,17 +88,32 @@ impl<'a> Pikkr<'a> {
                 0,
                 queries_len,
                 &mut self.stats,
-                true,
+                false,
                 &mut results,
                 &self.index_builder.b_quote(),
                 &mut self.colon_positions,
             )?;
-            self.trained_num += 1;
-            if self.trained_num >= self.train_num {
-                self.trained = true;
-            }
         }
+        Ok(results)
+    }
 
+    fn basic_parse<'b>(&mut self, rec: &'b [u8]) -> Result<Vec<Option<&'b [u8]>>> {
+        let mut results = vec![None; self.queries.num_queries];
+        let queries_len = self.queries.root.len();
+        parser::basic_parse(
+            rec,
+            &self.index_builder.index(),
+            &mut self.queries.root,
+            0,
+            rec.len() - 1,
+            0,
+            queries_len,
+            &mut self.stats,
+            true,
+            &mut results,
+            &self.index_builder.b_quote(),
+            &mut self.colon_positions,
+        )?;
         Ok(results)
     }
 }
