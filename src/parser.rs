@@ -6,23 +6,41 @@ use super::utf8::{COMMA, CR, HT, LF, RIGHT_BRACE, SPACE};
 use fnv::{FnvHashMap, FnvHashSet};
 
 #[inline]
-pub fn basic_parse<'a>(rec: &'a [u8], index: &[Vec<u64>], queries: &mut FnvHashMap<&[u8], Query>, start: usize, end: usize, level: usize, query_num: usize, stats: &mut Vec<FnvHashSet<usize>>, set_stats: bool, results: &mut Vec<Option<&'a [u8]>>, b_quote: &[u64]) -> Result<()> {
+pub fn basic_parse<'a>(
+    rec: &'a [u8],
+    index: &[Vec<u64>],
+    queries: &mut FnvHashMap<&[u8], Query>,
+    start: usize,
+    end: usize,
+    level: usize,
+    query_num: usize,
+    stats: &mut Vec<FnvHashSet<usize>>,
+    set_stats: bool,
+    results: &mut Vec<Option<&'a [u8]>>,
+    b_quote: &[u64],
+    colon_positions: &mut Vec<Vec<usize>>,
+) -> Result<()> {
     let mut found_num = 0;
-    let cp = generate_colon_positions(index, start, end, level);
+    generate_colon_positions(index, start, end, level, colon_positions);
     let mut vei = end;
-    for i in (0..cp.len()).rev() {
-        let (fsi, fei) = search_pre_field_indices(b_quote, if i > 0 { cp[i - 1] } else { start }, cp[i])?;
+    let cp_len = &colon_positions[level].len();
+    for i in (0..*cp_len).rev() {
+        let (fsi, fei) = search_pre_field_indices(
+            b_quote,
+            if i > 0 {
+                colon_positions[level][i - 1]
+            } else {
+                start
+            },
+            colon_positions[level][i],
+        )?;
         let field = &rec[fsi + 1..fei];
         if let Some(query) = queries.get_mut(field) {
             let (vsi, vei) = search_post_value_indices(
                 rec,
-                cp[i] + 1,
+                colon_positions[level][i] + 1,
                 vei,
-                if i == cp.len() - 1 {
-                    RIGHT_BRACE
-                } else {
-                    COMMA
-                },
+                if i == *cp_len - 1 { RIGHT_BRACE } else { COMMA },
             )?;
             found_num += 1;
             if set_stats && !stats[query.i].contains(&i) {
@@ -42,6 +60,7 @@ pub fn basic_parse<'a>(rec: &'a [u8], index: &[Vec<u64>], queries: &mut FnvHashM
                     set_stats,
                     results,
                     b_quote,
+                    colon_positions,
                 )?;
             }
             if query.target {
@@ -57,28 +76,41 @@ pub fn basic_parse<'a>(rec: &'a [u8], index: &[Vec<u64>], queries: &mut FnvHashM
 }
 
 #[inline]
-pub fn speculative_parse<'a>(rec: &'a [u8], index: &[Vec<u64>], queries: &FnvHashMap<&[u8], Query>, start: usize, end: usize, level: usize, stats: &[FnvHashSet<usize>], results: &mut Vec<Option<&'a [u8]>>, b_quote: &[u64]) -> Result<bool> {
-    let cp = generate_colon_positions(index, start, end, level);
+pub fn speculative_parse<'a>(rec: &'a [u8], index: &[Vec<u64>], queries: &FnvHashMap<&[u8], Query>, start: usize, end: usize, level: usize, stats: &[FnvHashSet<usize>], results: &mut Vec<Option<&'a [u8]>>, b_quote: &[u64], colon_positions: &mut Vec<Vec<usize>>) -> Result<bool> {
+    generate_colon_positions(index, start, end, level, colon_positions);
     for (s, q) in queries.iter() {
         let mut found = false;
         for i in &stats[q.i] {
-            if *i >= cp.len() {
+            let cp_len = &colon_positions[level].len();
+            if *i >= *cp_len {
                 continue;
             }
-            let (fsi, fei) = search_pre_field_indices(b_quote, if *i > 0 { cp[*i - 1] } else { start }, cp[*i])?;
+            let (fsi, fei) = search_pre_field_indices(
+                b_quote,
+                if *i > 0 {
+                    colon_positions[level][*i - 1]
+                } else {
+                    start
+                },
+                colon_positions[level][*i],
+            )?;
             let field = &rec[fsi + 1..fei];
             if s == &field {
-                let vei = if *i < cp.len() - 1 {
-                    let (nfsi, _) = search_pre_field_indices(b_quote, cp[*i], cp[*i + 1])?;
+                let vei = if *i < *cp_len - 1 {
+                    let (nfsi, _) = search_pre_field_indices(
+                        b_quote,
+                        colon_positions[level][*i],
+                        colon_positions[level][*i + 1],
+                    )?;
                     nfsi - 1
                 } else {
                     end
                 };
                 let (vsi, vei) = search_post_value_indices(
                     rec,
-                    cp[*i] + 1,
+                    colon_positions[level][*i] + 1,
                     vei,
-                    if *i == cp.len() - 1 {
+                    if *i == *cp_len - 1 {
                         RIGHT_BRACE
                     } else {
                         COMMA
@@ -95,6 +127,7 @@ pub fn speculative_parse<'a>(rec: &'a [u8], index: &[Vec<u64>], queries: &FnvHas
                         stats,
                         results,
                         b_quote,
+                        colon_positions,
                     )?;
                 } else {
                     found = true;
@@ -113,20 +146,20 @@ pub fn speculative_parse<'a>(rec: &'a [u8], index: &[Vec<u64>], queries: &FnvHas
 }
 
 #[inline]
-fn generate_colon_positions(index: &[Vec<u64>], start: usize, end: usize, level: usize) -> Vec<usize> {
-    let mut c = Vec::new();
+fn generate_colon_positions(index: &[Vec<u64>], start: usize, end: usize, level: usize, colon_positions: &mut Vec<Vec<usize>>) {
+    let cp = &mut colon_positions[level];
+    cp.clear();
     for i in start / 64..(end + 63) / 64 {
         let mut m_colon = index[level][i];
         while m_colon != 0 {
             let m_bit = bit::e(m_colon);
             let offset = i * 64 + (m_bit.trailing_zeros() as usize);
             if start <= offset && offset <= end {
-                c.push(offset);
+                cp.push(offset);
             }
             m_colon = bit::r(m_colon);
         }
     }
-    c
 }
 
 #[inline]
@@ -332,7 +365,7 @@ mod tests {
         ];
 
         let mut results = vec![None, None, None, None, None, None];
-
+        let mut colon_positions = vec![Vec::new(); l];
         let result = basic_parse(
             json_rec,
             &index,
@@ -345,6 +378,7 @@ mod tests {
             true,
             &mut results,
             &b_quote,
+            &mut colon_positions,
         );
 
         assert_eq!(Ok(()), result);
@@ -398,8 +432,9 @@ mod tests {
             },
         ];
         for t in test_cases {
-            let cp = generate_colon_positions(&t.index, t.start, t.end, t.level);
-            assert_eq!(t.want, cp);
+            let mut cp = vec![Vec::new(); t.level + 1];
+            generate_colon_positions(&t.index, t.start, t.end, t.level, &mut cp);
+            assert_eq!(t.want, cp[0]);
         }
     }
 }

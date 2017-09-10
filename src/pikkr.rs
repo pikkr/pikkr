@@ -29,6 +29,8 @@ pub struct Pikkr<'a> {
 
     index: Vec<Vec<u64>>,
 
+    colon_positions: Vec<Vec<usize>>,
+
     train_num: usize,
     trained_num: usize,
     trained: bool,
@@ -43,6 +45,7 @@ impl<'a> Pikkr<'a> {
         let queries = QueryTree::new(query_strs)?;
 
         let index = vec![Vec::new(); queries.max_depth];
+        let colon_positions = vec![Vec::new(); queries.max_depth];
         let stats = vec![Default::default(); queries.num_nodes];
 
         Ok(Pikkr {
@@ -64,6 +67,8 @@ impl<'a> Pikkr<'a> {
             s_left: Vec::new(),
 
             index,
+
+            colon_positions,
 
             train_num,
             trained_num: 0,
@@ -156,6 +161,7 @@ impl<'a> Pikkr<'a> {
                 &self.stats,
                 &mut results,
                 &self.b_quote,
+                &mut self.colon_positions,
             )?;
             if !found {
                 let queries_len = self.queries.root.len();
@@ -171,6 +177,7 @@ impl<'a> Pikkr<'a> {
                     false,
                     &mut results,
                     &self.b_quote,
+                    &mut self.colon_positions,
                 )?;
             }
         } else {
@@ -187,6 +194,7 @@ impl<'a> Pikkr<'a> {
                 true,
                 &mut results,
                 &self.b_quote,
+                &mut self.colon_positions,
             )?;
             self.trained_num += 1;
             if self.trained_num >= self.train_num {
