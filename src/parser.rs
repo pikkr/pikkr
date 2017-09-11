@@ -19,12 +19,13 @@ pub fn basic_parse<'a>(
     b_quote: &[u64],
     colon_positions: &mut Vec<Vec<usize>>,
 ) -> Result<()> {
+    generate_colon_positions(index, start, end, level, colon_positions);
+
     let query_num = queries.len();
     let mut found_num = 0;
-    generate_colon_positions(index, start, end, level, colon_positions);
     let mut vei = end;
-    let cp_len = &colon_positions[level].len();
-    for i in (0..*cp_len).rev() {
+    let cp_len = colon_positions[level].len();
+    for i in (0..cp_len).rev() {
         let (fsi, fei) = search_pre_field_indices(
             b_quote,
             if i > 0 {
@@ -40,7 +41,7 @@ pub fn basic_parse<'a>(
                 rec,
                 colon_positions[level][i] + 1,
                 vei,
-                if i == *cp_len - 1 { RIGHT_BRACE } else { COMMA },
+                if i == cp_len - 1 { RIGHT_BRACE } else { COMMA },
             )?;
             found_num += 1;
             if set_stats && !stats[query.i].contains(&i) {
@@ -76,29 +77,30 @@ pub fn basic_parse<'a>(
 #[inline]
 pub fn speculative_parse<'a>(rec: &'a [u8], index: &[Vec<u64>], queries: &FnvHashMap<&[u8], Query>, start: usize, end: usize, level: usize, stats: &[FnvHashSet<usize>], results: &mut Vec<Option<&'a [u8]>>, b_quote: &[u64], colon_positions: &mut Vec<Vec<usize>>) -> Result<bool> {
     generate_colon_positions(index, start, end, level, colon_positions);
-    for (s, q) in queries.iter() {
+
+    for (&s, q) in queries {
         let mut found = false;
-        for i in &stats[q.i] {
-            let cp_len = &colon_positions[level].len();
-            if *i >= *cp_len {
+        for &i in &stats[q.i] {
+            let cp_len = colon_positions[level].len();
+            if i >= cp_len {
                 continue;
             }
             let (fsi, fei) = search_pre_field_indices(
                 b_quote,
-                if *i > 0 {
-                    colon_positions[level][*i - 1]
+                if i > 0 {
+                    colon_positions[level][i - 1]
                 } else {
                     start
                 },
-                colon_positions[level][*i],
+                colon_positions[level][i],
             )?;
             let field = &rec[fsi + 1..fei];
-            if s == &field {
-                let vei = if *i < *cp_len - 1 {
+            if s == field {
+                let vei = if i < cp_len - 1 {
                     let (nfsi, _) = search_pre_field_indices(
                         b_quote,
-                        colon_positions[level][*i],
-                        colon_positions[level][*i + 1],
+                        colon_positions[level][i],
+                        colon_positions[level][i + 1],
                     )?;
                     nfsi - 1
                 } else {
@@ -106,13 +108,9 @@ pub fn speculative_parse<'a>(rec: &'a [u8], index: &[Vec<u64>], queries: &FnvHas
                 };
                 let (vsi, vei) = search_post_value_indices(
                     rec,
-                    colon_positions[level][*i] + 1,
+                    colon_positions[level][i] + 1,
                     vei,
-                    if *i == *cp_len - 1 {
-                        RIGHT_BRACE
-                    } else {
-                        COMMA
-                    },
+                    if i == cp_len - 1 { RIGHT_BRACE } else { COMMA },
                 )?;
                 if let Some(ref children) = q.children {
                     found = speculative_parse(
