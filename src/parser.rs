@@ -9,7 +9,7 @@ use fnv::{FnvHashMap, FnvHashSet};
 pub fn basic_parse<'a>(
     rec: &'a [u8],
     index: &[Vec<u64>],
-    queries: &mut FnvHashMap<&[u8], Query>,
+    queries: &FnvHashMap<&[u8], Query>,
     start: usize,
     end: usize,
     level: usize,
@@ -21,7 +21,6 @@ pub fn basic_parse<'a>(
 ) -> Result<()> {
     generate_colon_positions(index, start, end, level, colon_positions);
 
-    let query_num = queries.len();
     let mut found_num = 0;
     let mut vei = end;
     let cp_len = colon_positions[level].len();
@@ -36,7 +35,7 @@ pub fn basic_parse<'a>(
             colon_positions[level][i],
         )?;
         let field = &rec[fsi + 1..fei];
-        if let Some(query) = queries.get_mut(field) {
+        if let Some(query) = queries.get(field) {
             let (vsi, vei) = search_post_value_indices(
                 rec,
                 colon_positions[level][i] + 1,
@@ -47,7 +46,7 @@ pub fn basic_parse<'a>(
             if set_stats && !stats[query.i].contains(&i) {
                 stats[query.i].insert(i);
             }
-            if let Some(ref mut children) = query.children {
+            if let Some(ref children) = query.children {
                 basic_parse(
                     rec,
                     index,
@@ -65,7 +64,7 @@ pub fn basic_parse<'a>(
             if query.target {
                 results[query.ri] = Some(&rec[vsi..vei + 1]);
             }
-            if found_num == query_num {
+            if found_num == queries.len() {
                 return Ok(());
             }
         }
