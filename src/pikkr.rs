@@ -1,5 +1,5 @@
 use super::error::{Error, ErrorKind};
-use super::parser::{self, Parser};
+use super::parser::Parser;
 use super::query::QueryTree;
 use super::result::Result;
 
@@ -54,18 +54,10 @@ impl<'a> Pikkr<'a> {
 
     fn speculative_parse<'b>(&mut self, rec: &'b [u8]) -> Result<Vec<Option<&'b [u8]>>> {
         let mut results = vec![None; self.queries.num_queries];
-        let found = parser::speculative_parse(
-            &self.parser,
-            rec,
-            &self.queries.root,
-            0,
-            rec.len() - 1,
-            0,
-            &mut results,
-        )?;
+        let found = self.parser
+            .speculative_parse(rec, &self.queries.root, 0, rec.len() - 1, 0, &mut results)?;
         if !found {
-            parser::basic_parse(
-                &mut self.parser,
+            self.parser.basic_parse(
                 rec,
                 &self.queries.root,
                 0,
@@ -80,8 +72,7 @@ impl<'a> Pikkr<'a> {
 
     fn basic_parse<'b>(&mut self, rec: &'b [u8]) -> Result<Vec<Option<&'b [u8]>>> {
         let mut results = vec![None; self.queries.num_queries];
-        parser::basic_parse(
-            &mut self.parser,
+        self.parser.basic_parse(
             rec,
             &self.queries.root,
             0,

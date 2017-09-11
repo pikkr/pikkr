@@ -24,136 +24,127 @@ impl Parser {
             colon_positions,
         }
     }
-}
 
-#[inline]
-pub fn basic_parse<'a>(
-    parser: &mut Parser,
-    rec: &'a [u8],
-    queries: &FnvHashMap<&[u8], Query>,
-    start: usize,
-    end: usize,
-    level: usize,
-    set_stats: bool,
-    results: &mut Vec<Option<&'a [u8]>>,
-) -> Result<()> {
-    generate_colon_positions(
-        &parser.index_builder.index,
-        start,
-        end,
-        level,
-        &mut *parser.colon_positions.borrow_mut(),
-    );
+    #[inline]
+    pub fn basic_parse<'a>(
+        &mut self,
+        rec: &'a [u8],
+        queries: &FnvHashMap<&[u8], Query>,
+        start: usize,
+        end: usize,
+        level: usize,
+        set_stats: bool,
+        results: &mut Vec<Option<&'a [u8]>>,
+    ) -> Result<()> {
+        generate_colon_positions(
+            &self.index_builder.index,
+            start,
+            end,
+            level,
+            &mut *self.colon_positions.borrow_mut(),
+        );
 
-    let mut found_num = 0;
-    let mut vei = end;
-    let cp_len = parser.colon_positions.borrow()[level].len();
-    for i in (0..cp_len).rev() {
-        let (fsi, fei) = search_pre_field_indices(
-            &parser.index_builder.b_quote,
-            if i > 0 {
-                parser.colon_positions.borrow()[level][i - 1]
-            } else {
-                start
-            },
-            parser.colon_positions.borrow()[level][i],
-        )?;
-        let field = &rec[fsi + 1..fei];
-        if let Some(query) = queries.get(field) {
-            let (vsi, vei) = search_post_value_indices(
-                rec,
-                parser.colon_positions.borrow()[level][i] + 1,
-                vei,
-                if i == cp_len - 1 { RIGHT_BRACE } else { COMMA },
-            )?;
-            found_num += 1;
-            if set_stats && !parser.stats[query.i].contains(&i) {
-                parser.stats[query.i].insert(i);
-            }
-            if let Some(ref children) = query.children {
-                basic_parse(
-                    parser,
-                    rec,
-                    children,
-                    vsi,
-                    vei,
-                    level + 1,
-                    set_stats,
-                    results,
-                )?;
-            }
-            if query.target {
-                results[query.ri] = Some(&rec[vsi..vei + 1]);
-            }
-            if found_num == queries.len() {
-                return Ok(());
-            }
-        }
-        vei = fsi - 1;
-    }
-    Ok(())
-}
-
-#[inline]
-pub fn speculative_parse<'a>(parser: &Parser, rec: &'a [u8], queries: &FnvHashMap<&[u8], Query>, start: usize, end: usize, level: usize, results: &mut Vec<Option<&'a [u8]>>) -> Result<bool> {
-    generate_colon_positions(
-        &parser.index_builder.index,
-        start,
-        end,
-        level,
-        &mut *parser.colon_positions.borrow_mut(),
-    );
-
-    for (&s, q) in queries {
-        let mut found = false;
-        for &i in &parser.stats[q.i] {
-            let cp_len = parser.colon_positions.borrow()[level].len();
-            if i >= cp_len {
-                continue;
-            }
+        let mut found_num = 0;
+        let mut vei = end;
+        let cp_len = self.colon_positions.borrow()[level].len();
+        for i in (0..cp_len).rev() {
             let (fsi, fei) = search_pre_field_indices(
-                &parser.index_builder.b_quote,
+                &self.index_builder.b_quote,
                 if i > 0 {
-                    parser.colon_positions.borrow()[level][i - 1]
+                    self.colon_positions.borrow()[level][i - 1]
                 } else {
                     start
                 },
-                parser.colon_positions.borrow()[level][i],
+                self.colon_positions.borrow()[level][i],
             )?;
             let field = &rec[fsi + 1..fei];
-            if s == field {
-                let vei = if i < cp_len - 1 {
-                    let (nfsi, _) = search_pre_field_indices(
-                        &parser.index_builder.b_quote,
-                        parser.colon_positions.borrow()[level][i],
-                        parser.colon_positions.borrow()[level][i + 1],
-                    )?;
-                    nfsi - 1
-                } else {
-                    end
-                };
+            if let Some(query) = queries.get(field) {
                 let (vsi, vei) = search_post_value_indices(
                     rec,
-                    parser.colon_positions.borrow()[level][i] + 1,
+                    self.colon_positions.borrow()[level][i] + 1,
                     vei,
                     if i == cp_len - 1 { RIGHT_BRACE } else { COMMA },
                 )?;
-                if let Some(ref children) = q.children {
-                    found = speculative_parse(parser, rec, children, vsi, vei, level + 1, results)?;
-                } else {
-                    found = true;
+                found_num += 1;
+                if set_stats && !self.stats[query.i].contains(&i) {
+                    self.stats[query.i].insert(i);
                 }
-                if q.target {
-                    results[q.ri] = Some(&rec[vsi..vei + 1]);
+                if let Some(ref children) = query.children {
+                    self.basic_parse(rec, children, vsi, vei, level + 1, set_stats, results)?;
                 }
-                break;
+                if query.target {
+                    results[query.ri] = Some(&rec[vsi..vei + 1]);
+                }
+                if found_num == queries.len() {
+                    return Ok(());
+                }
+            }
+            vei = fsi - 1;
+        }
+        Ok(())
+    }
+
+    #[inline]
+    pub fn speculative_parse<'a>(&self, rec: &'a [u8], queries: &FnvHashMap<&[u8], Query>, start: usize, end: usize, level: usize, results: &mut Vec<Option<&'a [u8]>>) -> Result<bool> {
+        generate_colon_positions(
+            &self.index_builder.index,
+            start,
+            end,
+            level,
+            &mut *self.colon_positions.borrow_mut(),
+        );
+
+        for (&s, q) in queries {
+            let mut found = false;
+            for &i in &self.stats[q.i] {
+                let cp_len = self.colon_positions.borrow()[level].len();
+                if i >= cp_len {
+                    continue;
+                }
+                let (fsi, fei) = search_pre_field_indices(
+                    &self.index_builder.b_quote,
+                    if i > 0 {
+                        self.colon_positions.borrow()[level][i - 1]
+                    } else {
+                        start
+                    },
+                    self.colon_positions.borrow()[level][i],
+                )?;
+                let field = &rec[fsi + 1..fei];
+                if s == field {
+                    let vei = if i < cp_len - 1 {
+                        let (nfsi, _) = search_pre_field_indices(
+                            &self.index_builder.b_quote,
+                            self.colon_positions.borrow()[level][i],
+                            self.colon_positions.borrow()[level][i + 1],
+                        )?;
+                        nfsi - 1
+                    } else {
+                        end
+                    };
+                    let (vsi, vei) = search_post_value_indices(
+                        rec,
+                        self.colon_positions.borrow()[level][i] + 1,
+                        vei,
+                        if i == cp_len - 1 { RIGHT_BRACE } else { COMMA },
+                    )?;
+                    if let Some(ref children) = q.children {
+                        found = self.speculative_parse(rec, children, vsi, vei, level + 1, results)?;
+                    } else {
+                        found = true;
+                    }
+                    if q.target {
+                        results[q.ri] = Some(&rec[vsi..vei + 1]);
+                    }
+                    break;
+                }
+            }
+            if !found {
+                return Ok(false);
             }
         }
-        if !found {
-            return Ok(false);
-        }
+        Ok(true)
     }
-    Ok(true)
 }
 
 #[inline]
@@ -334,8 +325,7 @@ mod tests {
             },
         );
         let mut results = vec![None, None, None, None, None, None];
-        let result = basic_parse(
-            &mut parser,
+        let result = parser.basic_parse(
             json_rec,
             &mut queries,
             0,
