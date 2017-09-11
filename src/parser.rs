@@ -1,64 +1,85 @@
 use super::bit;
 use super::error::{Error, ErrorKind};
+use super::index_builder::IndexBuilder;
 use super::query::Query;
 use super::result::Result;
 use super::utf8::{COMMA, CR, HT, LF, RIGHT_BRACE, SPACE};
 use fnv::{FnvHashMap, FnvHashSet};
+use std::cell::RefCell;
+
+pub struct Parser {
+    pub index_builder: IndexBuilder,
+    stats: Vec<FnvHashSet<usize>>,
+    colon_positions: RefCell<Vec<Vec<usize>>>,
+}
+
+impl Parser {
+    pub fn new(max_depth: usize, num_nodes: usize) -> Self {
+        let index_builder = IndexBuilder::new(max_depth);
+        let colon_positions = RefCell::new(vec![Vec::new(); max_depth]);
+        let stats = vec![Default::default(); num_nodes];
+        Self {
+            index_builder,
+            stats,
+            colon_positions,
+        }
+    }
+}
 
 #[inline]
 pub fn basic_parse<'a>(
+    parser: &mut Parser,
     rec: &'a [u8],
-    index: &[Vec<u64>],
     queries: &FnvHashMap<&[u8], Query>,
     start: usize,
     end: usize,
     level: usize,
-    stats: &mut Vec<FnvHashSet<usize>>,
     set_stats: bool,
     results: &mut Vec<Option<&'a [u8]>>,
-    b_quote: &[u64],
-    colon_positions: &mut Vec<Vec<usize>>,
 ) -> Result<()> {
-    generate_colon_positions(index, start, end, level, colon_positions);
+    generate_colon_positions(
+        &parser.index_builder.index,
+        start,
+        end,
+        level,
+        &mut *parser.colon_positions.borrow_mut(),
+    );
 
     let mut found_num = 0;
     let mut vei = end;
-    let cp_len = colon_positions[level].len();
+    let cp_len = parser.colon_positions.borrow()[level].len();
     for i in (0..cp_len).rev() {
         let (fsi, fei) = search_pre_field_indices(
-            b_quote,
+            &parser.index_builder.b_quote,
             if i > 0 {
-                colon_positions[level][i - 1]
+                parser.colon_positions.borrow()[level][i - 1]
             } else {
                 start
             },
-            colon_positions[level][i],
+            parser.colon_positions.borrow()[level][i],
         )?;
         let field = &rec[fsi + 1..fei];
         if let Some(query) = queries.get(field) {
             let (vsi, vei) = search_post_value_indices(
                 rec,
-                colon_positions[level][i] + 1,
+                parser.colon_positions.borrow()[level][i] + 1,
                 vei,
                 if i == cp_len - 1 { RIGHT_BRACE } else { COMMA },
             )?;
             found_num += 1;
-            if set_stats && !stats[query.i].contains(&i) {
-                stats[query.i].insert(i);
+            if set_stats && !parser.stats[query.i].contains(&i) {
+                parser.stats[query.i].insert(i);
             }
             if let Some(ref children) = query.children {
                 basic_parse(
+                    parser,
                     rec,
-                    index,
                     children,
                     vsi,
                     vei,
                     level + 1,
-                    stats,
                     set_stats,
                     results,
-                    b_quote,
-                    colon_positions,
                 )?;
             }
             if query.target {
@@ -74,32 +95,38 @@ pub fn basic_parse<'a>(
 }
 
 #[inline]
-pub fn speculative_parse<'a>(rec: &'a [u8], index: &[Vec<u64>], queries: &FnvHashMap<&[u8], Query>, start: usize, end: usize, level: usize, stats: &[FnvHashSet<usize>], results: &mut Vec<Option<&'a [u8]>>, b_quote: &[u64], colon_positions: &mut Vec<Vec<usize>>) -> Result<bool> {
-    generate_colon_positions(index, start, end, level, colon_positions);
+pub fn speculative_parse<'a>(parser: &Parser, rec: &'a [u8], queries: &FnvHashMap<&[u8], Query>, start: usize, end: usize, level: usize, results: &mut Vec<Option<&'a [u8]>>) -> Result<bool> {
+    generate_colon_positions(
+        &parser.index_builder.index,
+        start,
+        end,
+        level,
+        &mut *parser.colon_positions.borrow_mut(),
+    );
 
     for (&s, q) in queries {
         let mut found = false;
-        for &i in &stats[q.i] {
-            let cp_len = colon_positions[level].len();
+        for &i in &parser.stats[q.i] {
+            let cp_len = parser.colon_positions.borrow()[level].len();
             if i >= cp_len {
                 continue;
             }
             let (fsi, fei) = search_pre_field_indices(
-                b_quote,
+                &parser.index_builder.b_quote,
                 if i > 0 {
-                    colon_positions[level][i - 1]
+                    parser.colon_positions.borrow()[level][i - 1]
                 } else {
                     start
                 },
-                colon_positions[level][i],
+                parser.colon_positions.borrow()[level][i],
             )?;
             let field = &rec[fsi + 1..fei];
             if s == field {
                 let vei = if i < cp_len - 1 {
                     let (nfsi, _) = search_pre_field_indices(
-                        b_quote,
-                        colon_positions[level][i],
-                        colon_positions[level][i + 1],
+                        &parser.index_builder.b_quote,
+                        parser.colon_positions.borrow()[level][i],
+                        parser.colon_positions.borrow()[level][i + 1],
                     )?;
                     nfsi - 1
                 } else {
@@ -107,23 +134,12 @@ pub fn speculative_parse<'a>(rec: &'a [u8], index: &[Vec<u64>], queries: &FnvHas
                 };
                 let (vsi, vei) = search_post_value_indices(
                     rec,
-                    colon_positions[level][i] + 1,
+                    parser.colon_positions.borrow()[level][i] + 1,
                     vei,
                     if i == cp_len - 1 { RIGHT_BRACE } else { COMMA },
                 )?;
                 if let Some(ref children) = q.children {
-                    found = speculative_parse(
-                        rec,
-                        index,
-                        children,
-                        vsi,
-                        vei,
-                        level + 1,
-                        stats,
-                        results,
-                        b_quote,
-                        colon_positions,
-                    )?;
+                    found = speculative_parse(parser, rec, children, vsi, vei, level + 1, results)?;
                 } else {
                     found = true;
                 }
@@ -241,46 +257,17 @@ fn search_post_value_indices(rec: &[u8], si: usize, ei: usize, ignore_once_char:
 #[cfg(test)]
 mod tests {
     use super::*;
-    use super::super::avx;
-    use super::super::index_builder;
-    use super::super::utf8::{BACKSLASH, COLON, LEFT_BRACE, QUOTE, RIGHT_BRACE};
 
     #[test]
     fn test_basic_parse() {
         let json_rec_str = r#"{ "aaa" : "AAA", "bbb" : 111, "ccc": ["C1", "C2"], "ddd" : { "d1" : "D1", "d2" : "D2", "d3": 333 }, "eee": { "e1": "EEE" } } "#;
         let json_rec = json_rec_str.as_bytes();
-        let mut b_backslash = Vec::with_capacity((json_rec.len() + 63) / 64);
-        let mut b_quote = Vec::with_capacity((json_rec.len() + 63) / 64);
-        let mut b_colon = Vec::with_capacity((json_rec.len() + 63) / 64);
-        let mut b_left = Vec::with_capacity((json_rec.len() + 63) / 64);
-        let mut b_right = Vec::with_capacity((json_rec.len() + 63) / 64);
-        index_builder::build_structural_character_bitmap(
-            &json_rec,
-            &mut b_backslash,
-            &mut b_quote,
-            &mut b_colon,
-            &mut b_left,
-            &mut b_right,
-            &avx::mm256i(BACKSLASH as i8),
-            &avx::mm256i(QUOTE as i8),
-            &avx::mm256i(COLON as i8),
-            &avx::mm256i(LEFT_BRACE as i8),
-            &avx::mm256i(RIGHT_BRACE as i8),
-        );
-        index_builder::build_structural_quote_bitmap(&b_backslash, &mut b_quote);
-        let mut b_string_mask = Vec::with_capacity(b_quote.len());
-        index_builder::build_string_mask_bitmap(&b_quote, &mut b_string_mask);
-        for i in 0..b_string_mask.len() {
-            let b = b_string_mask[i];
-            b_colon[i] &= b;
-            b_left[i] &= b;
-            b_right[i] &= b;
-        }
+
         let l = 10;
-        let mut index = vec![Vec::new(); l];
-        let mut s_left = Vec::new();
-        let r = index_builder::build_leveled_colon_bitmap(&b_colon, &b_left, &b_right, l, &mut s_left, &mut index);
+        let mut parser = Parser::new(l, 7);
+        let r = parser.index_builder.build_structural_indices(json_rec);
         assert_eq!(Ok(()), r);
+
         let mut children = FnvHashMap::default();
         children.insert(
             "d1".as_bytes(),
@@ -346,31 +333,16 @@ mod tests {
                 children: None,
             },
         );
-
-        let mut stats = vec![
-            FnvHashSet::default(),
-            FnvHashSet::default(),
-            FnvHashSet::default(),
-            FnvHashSet::default(),
-            FnvHashSet::default(),
-            FnvHashSet::default(),
-            FnvHashSet::default(),
-        ];
-
         let mut results = vec![None, None, None, None, None, None];
-        let mut colon_positions = vec![Vec::new(); l];
         let result = basic_parse(
+            &mut parser,
             json_rec,
-            &index,
             &mut queries,
             0,
             json_rec.len() - 1,
             0,
-            &mut stats,
             true,
             &mut results,
-            &b_quote,
-            &mut colon_positions,
         );
 
         assert_eq!(Ok(()), result);
