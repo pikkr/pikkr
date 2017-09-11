@@ -67,20 +67,20 @@ impl<'a> Pikkr<'a> {
         let mut results = vec![None; self.queries.num_queries];
         let found = parser::speculative_parse(
             rec,
-            &self.index_builder.index(),
+            &self.index_builder.index,
             &self.queries.root,
             0,
             rec.len() - 1,
             0,
             &self.stats,
             &mut results,
-            &self.index_builder.b_quote(),
+            &self.index_builder.b_quote,
             &mut self.colon_positions,
         )?;
         if !found {
             parser::basic_parse(
                 rec,
-                &self.index_builder.index(),
+                &self.index_builder.index,
                 &mut self.queries.root,
                 0,
                 rec.len() - 1,
@@ -88,7 +88,7 @@ impl<'a> Pikkr<'a> {
                 &mut self.stats,
                 false,
                 &mut results,
-                &self.index_builder.b_quote(),
+                &self.index_builder.b_quote,
                 &mut self.colon_positions,
             )?;
         }
@@ -99,7 +99,7 @@ impl<'a> Pikkr<'a> {
         let mut results = vec![None; self.queries.num_queries];
         parser::basic_parse(
             rec,
-            &self.index_builder.index(),
+            &self.index_builder.index,
             &mut self.queries.root,
             0,
             rec.len() - 1,
@@ -107,7 +107,7 @@ impl<'a> Pikkr<'a> {
             &mut self.stats,
             true,
             &mut results,
-            &self.index_builder.b_quote(),
+            &self.index_builder.b_quote,
             &mut self.colon_positions,
         )?;
         Ok(results)
