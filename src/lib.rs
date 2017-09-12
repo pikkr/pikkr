@@ -11,9 +11,11 @@ mod bit;
 mod error;
 #[doc(hidden)]
 pub mod index_builder;
-mod parser;
+#[doc(hidden)]
+pub mod parser;
 mod pikkr;
-mod query;
+#[doc(hidden)]
+pub mod query;
 mod result;
 mod utf8;
 
