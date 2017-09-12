@@ -15,7 +15,7 @@ pub struct IndexBuilder {
     right_brace: m256i,
 
     b_backslash: Vec<u64>,
-    b_quote: Vec<u64>,
+    pub(crate) b_quote: Vec<u64>,
     b_colon: Vec<u64>,
     b_left: Vec<u64>,
     b_right: Vec<u64>,
@@ -23,7 +23,7 @@ pub struct IndexBuilder {
 
     s_left: Vec<(usize, u64)>,
 
-    index: Vec<Vec<u64>>,
+    pub(crate) index: Vec<Vec<u64>>,
     depth: usize,
 }
 
@@ -110,14 +110,6 @@ impl IndexBuilder {
             &mut self.s_left,
             &mut self.index,
         )
-    }
-
-    pub fn index(&self) -> &[Vec<u64>] {
-        &self.index
-    }
-
-    pub fn b_quote(&self) -> &[u64] {
-        &self.b_quote
     }
 }
 
