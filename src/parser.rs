@@ -248,86 +248,25 @@ fn search_post_value_indices(rec: &[u8], si: usize, ei: usize, ignore_once_char:
 #[cfg(test)]
 mod tests {
     use super::*;
+    use super::super::query::QueryTree;
 
     #[test]
     fn test_basic_parse() {
         let json_rec_str = r#"{ "aaa" : "AAA", "bbb" : 111, "ccc": ["C1", "C2"], "ddd" : { "d1" : "D1", "d2" : "D2", "d3": 333 }, "eee": { "e1": "EEE" } } "#;
         let json_rec = json_rec_str.as_bytes();
+        let query_strs = &["$.ddd.d1", "$.ddd.d3", "$.aaa", "$.bbb", "$.ccc", "$.eee"];
+
+        let queries = QueryTree::new(query_strs).unwrap();
 
         let l = 10;
-        let mut parser = Parser::new(l, 7);
+        let mut parser = Parser::new(l, queries.num_nodes);
         let r = parser.index_builder.build_structural_indices(json_rec);
         assert_eq!(Ok(()), r);
 
-        let mut children = FnvHashMap::default();
-        children.insert(
-            "d1".as_bytes(),
-            Query {
-                i: 0,
-                ri: 0,
-                target: true,
-                children: None,
-            },
-        );
-        children.insert(
-            "d3".as_bytes(),
-            Query {
-                i: 1,
-                ri: 1,
-                target: true,
-                children: None,
-            },
-        );
-        let mut queries = FnvHashMap::default();
-        queries.insert(
-            "aaa".as_bytes(),
-            Query {
-                i: 2,
-                ri: 2,
-                target: true,
-                children: None,
-            },
-        );
-        queries.insert(
-            "bbb".as_bytes(),
-            Query {
-                i: 3,
-                ri: 3,
-                target: true,
-                children: None,
-            },
-        );
-        queries.insert(
-            "ccc".as_bytes(),
-            Query {
-                i: 4,
-                ri: 4,
-                target: true,
-                children: None,
-            },
-        );
-        queries.insert(
-            "ddd".as_bytes(),
-            Query {
-                i: 5,
-                ri: 0,
-                target: false,
-                children: Some(children),
-            },
-        );
-        queries.insert(
-            "eee".as_bytes(),
-            Query {
-                i: 6,
-                ri: 5,
-                target: true,
-                children: None,
-            },
-        );
-        let mut results = vec![None, None, None, None, None, None];
+        let mut results = vec![None; queries.num_queries];
         let result = parser.basic_parse(
             json_rec,
-            &mut queries,
+            &queries.root,
             0,
             json_rec.len() - 1,
             0,
