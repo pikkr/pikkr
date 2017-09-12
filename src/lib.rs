@@ -9,7 +9,8 @@ mod avx;
 mod emulated;
 mod bit;
 mod error;
-mod index_builder;
+#[doc(hidden)]
+pub mod index_builder;
 mod parser;
 mod pikkr;
 mod query;
