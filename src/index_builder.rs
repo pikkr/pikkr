@@ -3,8 +3,10 @@ use super::bit;
 use super::error::ErrorKind;
 use super::result::Result;
 use super::utf8::{BACKSLASH, COLON, LEFT_BRACE, QUOTE, RIGHT_BRACE};
+#[cfg(feature = "avx-accel")]
 use x86intrin::{m256i, mm256_cmpeq_epi8, mm256_movemask_epi8};
-
+#[cfg(not(feature = "avx-accel"))]
+use emulated::{m256i, mm256_cmpeq_epi8, mm256_movemask_epi8};
 
 #[derive(Debug)]
 pub struct IndexBuilder {

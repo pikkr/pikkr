@@ -11,6 +11,9 @@ keywords = ["pikkr", "json", "simd"]
 categories = ["algorithms", "data-structures", "parser-implementations", "parsing", "text-processing"]
 license = "MIT/Apache-2.0"
 
+[features]
+avx-accel = ["x86intrin"]
+
 [dependencies]
-x86intrin = "0.4.3"
+x86intrin = { version = "0.4.3", optional = true }
 fnv = "1.0.5"
