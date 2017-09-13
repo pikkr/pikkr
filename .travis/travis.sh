@@ -1,7 +1,7 @@
 #!/bin/bash -eu
 
 MODE="${1:-}"
-FEATURES="${2:-}"
+FEATURES="${2:-default}"
 TOOLCHAIN="${3:-nightly}"
 
 function ensure_installed () {
@@ -11,24 +11,30 @@ function ensure_installed () {
     fi
 }
 
+function run_cargo () {
+    local args=("$@")
+    echo "=== cargo ${args[@]} ==="
+    cargo "${args[@]}"
+}
+
 case "$MODE" in
     "")
         # The default script for testing.
-        cargo build --release --features "$FEATURES"
-        cargo test --release --features "$FEATURES"
+        run_cargo build --release --features "$FEATURES"
+        run_cargo test --release --features "$FEATURES"
         if [ "$TOOLCHAIN" == "nightly" ]; then
-            cargo bench --features "$FEATURES"
+            run_cargo bench --features "$FEATURES"
         fi
         ;;
 
     format-diff)
         ensure_installed "rustfmt-nightly"
-        cargo fmt -- --write-mode=diff
+        run_cargo fmt -- --write-mode=diff
         ;;
 
     clippy)
         ensure_installed "clippy"
-        cargo clippy --features "$FEATURES"
+        run_cargo clippy --features "$FEATURES"
         ;;
 
     *)
