@@ -12,5 +12,5 @@ script:
   - cargo update
   - cargo build --release
   - cargo test --release
-  - if [ "$TRAVIS_RUST_VERSION" != "nightly" ]; then cargo bench; fi
+  - if [ "$TRAVIS_RUST_VERSION" == "nightly" ]; then cargo bench; fi
   - ./.travis/format_diff.sh
