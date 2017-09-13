@@ -1,10 +1,16 @@
 dist: trusty
 sudo: required
 language: rust
-rust:
-  - nightly
 matrix:
+  include:
+    - env: RUSTFLAGS="-C target-cpu=native"
+      rust: nightly
   allow_failures:
     - rust: nightly
 cache: cargo
-script: ./ci.sh
+script:
+  - cargo update
+  - cargo build --release
+  - cargo test --release
+  - if [ "$TRAVIS_RUST_VERSION" != "nightly" ]; then cargo bench; fi
+  - ./.travis/format_diff.sh
