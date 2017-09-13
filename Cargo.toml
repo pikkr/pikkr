@@ -12,6 +12,7 @@ categories = ["algorithms", "data-structures", "parser-implementations", "parsin
 license = "MIT/Apache-2.0"
 
 [features]
+default = []
 avx-accel = ["x86intrin"]
 
 [dependencies]

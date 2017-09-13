@@ -1,16 +1,26 @@
 dist: trusty
 sudo: required
 language: rust
+
 matrix:
   include:
-    - env: RUSTFLAGS="-C target-cpu=native"
+    - rust: stable
+    - rust: beta
+    - rust: nightly
+    - rust: nightly
+      env: FEATURES="avx-accel" RUSTFLAGS="-C target-cpu=native"
+
+    # Supplemental checks
+    - env: CI_MODE="format-diff"
       rust: nightly
+    - env: CI_MODE="clippy"
+      rust: nightly
+
   allow_failures:
     - rust: nightly
+
 cache: cargo
+
 script:
   - cargo update
-  - cargo build --release
-  - cargo test --release
-  - if [ "$TRAVIS_RUST_VERSION" != "nightly" ]; then cargo bench; fi
-  - ./.travis/format_diff.sh
+  - ./.travis/travis.sh "${CI_MODE:-}" "${FEATURES:-}" "$TRAVIS_RUST_VERSION"
