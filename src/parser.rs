@@ -1,10 +1,10 @@
 use super::bit;
 use super::error::{Error, ErrorKind};
 use super::index_builder::IndexBuilder;
-use super::query::Query;
+use super::query::{Query, QueryTree};
 use super::result::Result;
 use super::utf8::{COMMA, CR, HT, LF, RIGHT_BRACE, SPACE};
-use fnv::{FnvHashMap, FnvHashSet};
+use fnv::FnvHashSet;
 use std::cell::RefCell;
 
 pub struct Parser {
@@ -14,10 +14,10 @@ pub struct Parser {
 }
 
 impl Parser {
-    pub fn new(max_depth: usize, num_nodes: usize) -> Self {
-        let index_builder = IndexBuilder::new(max_depth);
-        let colon_positions = RefCell::new(vec![Vec::new(); max_depth]);
-        let stats = vec![Default::default(); num_nodes];
+    pub fn new(queries: &QueryTree) -> Self {
+        let index_builder = IndexBuilder::new(queries.max_level());
+        let colon_positions = RefCell::new(vec![Vec::new(); queries.max_level()]);
+        let stats = vec![Default::default(); queries.num_nodes()];
         Self {
             index_builder,
             stats,
@@ -29,7 +29,7 @@ impl Parser {
     pub fn basic_parse<'a>(
         &mut self,
         rec: &'a [u8],
-        queries: &FnvHashMap<&[u8], Query>,
+        queries: &Query,
         start: usize,
         end: usize,
         level: usize,
@@ -58,7 +58,7 @@ impl Parser {
                 self.colon_positions.borrow()[level][i],
             )?;
             let field = &rec[fsi + 1..fei];
-            if let Some(query) = queries.get(field) {
+            if let Some(query) = queries.get_child(field) {
                 let (vsi, vei) = search_post_value_indices(
                     rec,
                     self.colon_positions.borrow()[level][i] + 1,
@@ -66,16 +66,16 @@ impl Parser {
                     if i == cp_len - 1 { RIGHT_BRACE } else { COMMA },
                 )?;
                 found_num += 1;
-                if set_stats && !self.stats[query.i].contains(&i) {
-                    self.stats[query.i].insert(i);
+                if set_stats && !self.stats[query.id()].contains(&i) {
+                    self.stats[query.id()].insert(i);
                 }
-                if let Some(ref children) = query.children {
-                    self.basic_parse(rec, children, vsi, vei, level + 1, set_stats, results)?;
+                if !query.is_leaf() {
+                    self.basic_parse(rec, query, vsi, vei, level + 1, set_stats, results)?;
                 }
-                if query.target {
-                    results[query.ri] = Some(&rec[vsi..vei + 1]);
+                if let Some(i) = query.path_id() {
+                    results[i] = Some(&rec[vsi..vei + 1]);
                 }
-                if found_num == queries.len() {
+                if found_num == queries.num_children() {
                     return Ok(());
                 }
             }
@@ -85,7 +85,7 @@ impl Parser {
     }
 
     #[inline]
-    pub fn speculative_parse<'a>(&self, rec: &'a [u8], queries: &FnvHashMap<&[u8], Query>, start: usize, end: usize, level: usize, results: &mut Vec<Option<&'a [u8]>>) -> Result<bool> {
+    pub fn speculative_parse<'a>(&self, rec: &'a [u8], queries: &Query, start: usize, end: usize, level: usize, results: &mut Vec<Option<&'a [u8]>>) -> Result<bool> {
         generate_colon_positions(
             &self.index_builder.index,
             start,
@@ -94,9 +94,9 @@ impl Parser {
             &mut *self.colon_positions.borrow_mut(),
         );
 
-        for (&s, q) in queries {
+        for (&s, q) in queries.iter() {
             let mut found = false;
-            for &i in &self.stats[q.i] {
+            for &i in &self.stats[q.id()] {
                 let cp_len = self.colon_positions.borrow()[level].len();
                 if i >= cp_len {
                     continue;
@@ -128,13 +128,13 @@ impl Parser {
                         vei,
                         if i == cp_len - 1 { RIGHT_BRACE } else { COMMA },
                     )?;
-                    if let Some(ref children) = q.children {
-                        found = self.speculative_parse(rec, children, vsi, vei, level + 1, results)?;
+                    if !q.is_leaf() {
+                        found = self.speculative_parse(rec, q, vsi, vei, level + 1, results)?;
                     } else {
                         found = true;
                     }
-                    if q.target {
-                        results[q.ri] = Some(&rec[vsi..vei + 1]);
+                    if let Some(i) = q.path_id() {
+                        results[i] = Some(&rec[vsi..vei + 1]);
                     }
                     break;
                 }
@@ -258,15 +258,14 @@ mod tests {
 
         let queries = QueryTree::new(query_strs).unwrap();
 
-        let l = 10;
-        let mut parser = Parser::new(l, queries.num_nodes);
+        let mut parser = Parser::new(&queries);
         let r = parser.index_builder.build_structural_indices(json_rec);
         assert_eq!(Ok(()), r);
 
-        let mut results = vec![None; queries.num_queries];
+        let mut results = vec![None; query_strs.len()];
         let result = parser.basic_parse(
             json_rec,
-            &queries.root,
+            &queries.as_node(),
             0,
             json_rec.len() - 1,
             0,

@@ -18,7 +18,7 @@ impl<'a> Pikkr<'a> {
     #[inline]
     pub fn new<S: ?Sized + AsRef<[u8]>>(query_strs: &[&'a S], train_num: usize) -> Result<Pikkr<'a>> {
         let queries = QueryTree::new(query_strs)?;
-        let parser = Parser::new(queries.max_depth, queries.num_nodes);
+        let parser = Parser::new(&queries);
 
         Ok(Pikkr {
             queries,
@@ -53,13 +53,19 @@ impl<'a> Pikkr<'a> {
     }
 
     fn speculative_parse<'b>(&mut self, rec: &'b [u8]) -> Result<Vec<Option<&'b [u8]>>> {
-        let mut results = vec![None; self.queries.num_queries];
-        let found = self.parser
-            .speculative_parse(rec, &self.queries.root, 0, rec.len() - 1, 0, &mut results)?;
+        let mut results = vec![None; self.queries.num_paths()];
+        let found = self.parser.speculative_parse(
+            rec,
+            &self.queries.as_node(),
+            0,
+            rec.len() - 1,
+            0,
+            &mut results,
+        )?;
         if !found {
             self.parser.basic_parse(
                 rec,
-                &self.queries.root,
+                &self.queries.as_node(),
                 0,
                 rec.len() - 1,
                 0,
@@ -71,10 +77,10 @@ impl<'a> Pikkr<'a> {
     }
 
     fn basic_parse<'b>(&mut self, rec: &'b [u8]) -> Result<Vec<Option<&'b [u8]>>> {
-        let mut results = vec![None; self.queries.num_queries];
+        let mut results = vec![None; self.queries.num_paths()];
         self.parser.basic_parse(
             rec,
-            &self.queries.root,
+            &self.queries.as_node(),
             0,
             rec.len() - 1,
             0,
