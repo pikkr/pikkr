@@ -10,7 +10,7 @@ const ROOT_QUERY_STR_OFFSET: usize = 2;
 
 /// A node in pattern tree
 #[derive(Debug, Default)]
-pub struct Query<'a> {
+pub struct QueryNode<'a> {
     /// The identifier of this node
     node_id: Option<usize>,
 
@@ -18,10 +18,10 @@ pub struct Query<'a> {
     path_id: Option<usize>,
 
     /// Children of this node
-    children: FnvHashMap<&'a [u8], Query<'a>>,
+    children: FnvHashMap<&'a [u8], QueryNode<'a>>,
 }
 
-impl<'a> Query<'a> {
+impl<'a> QueryNode<'a> {
     /// Returns whether this node is a leaf or not.
     #[inline]
     pub fn is_leaf(&self) -> bool {
@@ -55,7 +55,7 @@ impl<'a> Query<'a> {
 
     /// Returns the reference of a child whose filed name is `field`, if available.
     #[inline]
-    pub fn get_child(&self, field: &[u8]) -> Option<&Query> {
+    pub fn get_child(&self, field: &[u8]) -> Option<&QueryNode> {
         self.children.get(field)
     }
 
@@ -68,7 +68,7 @@ impl<'a> Query<'a> {
     }
 
     #[inline]
-    pub fn iter(&self) -> hash_map::Iter<&'a [u8], Query<'a>> {
+    pub fn iter(&self) -> hash_map::Iter<&'a [u8], QueryNode<'a>> {
         self.children.iter()
     }
 }
@@ -77,7 +77,7 @@ impl<'a> Query<'a> {
 /// A pattern tree associated with the queries
 #[derive(Debug, Default)]
 pub struct QueryTree<'a> {
-    root_node: Query<'a>,
+    root_node: QueryNode<'a>,
     paths: Vec<&'a [u8]>,
     max_level: usize,
     num_nodes: usize,
@@ -107,7 +107,7 @@ impl<'a> QueryTree<'a> {
             let num_nodes = &mut self.num_nodes;
             let cur1 = cur; // workaround for lifetime error
             cur = cur1.children.entry(field).or_insert_with(|| {
-                let node = Query {
+                let node = QueryNode {
                     node_id: Some(*num_nodes),
                     ..Default::default()
                 };
@@ -126,7 +126,7 @@ impl<'a> QueryTree<'a> {
 
     /// Returns the reference of root node of this pattern tree.
     #[inline]
-    pub fn as_node(&self) -> &Query {
+    pub fn as_node(&self) -> &QueryNode {
         &self.root_node
     }
 

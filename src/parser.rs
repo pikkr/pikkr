@@ -1,7 +1,7 @@
 use super::bit;
 use super::error::{Error, ErrorKind};
 use super::index_builder::IndexBuilder;
-use super::query::{Query, QueryTree};
+use super::query::{QueryNode, QueryTree};
 use super::result::Result;
 use super::utf8::{COMMA, CR, HT, LF, RIGHT_BRACE, SPACE};
 use fnv::FnvHashSet;
@@ -26,16 +26,7 @@ impl Parser {
     }
 
     #[inline]
-    pub fn basic_parse<'a>(
-        &mut self,
-        rec: &'a [u8],
-        queries: &Query,
-        start: usize,
-        end: usize,
-        level: usize,
-        set_stats: bool,
-        results: &mut Vec<Option<&'a [u8]>>,
-    ) -> Result<()> {
+    pub fn basic_parse<'a>(&mut self, rec: &'a [u8], queries: &QueryNode, start: usize, end: usize, level: usize, set_stats: bool, results: &mut Vec<Option<&'a [u8]>>) -> Result<()> {
         generate_colon_positions(
             &self.index_builder.index,
             start,
@@ -85,7 +76,7 @@ impl Parser {
     }
 
     #[inline]
-    pub fn speculative_parse<'a>(&self, rec: &'a [u8], queries: &Query, start: usize, end: usize, level: usize, results: &mut Vec<Option<&'a [u8]>>) -> Result<bool> {
+    pub fn speculative_parse<'a>(&self, rec: &'a [u8], queries: &QueryNode, start: usize, end: usize, level: usize, results: &mut Vec<Option<&'a [u8]>>) -> Result<bool> {
         generate_colon_positions(
             &self.index_builder.index,
             start,
