@@ -54,21 +54,14 @@ impl<'a> Pikkr<'a> {
 
     fn speculative_parse<'b>(&mut self, rec: &'b [u8]) -> Result<Vec<Option<&'b [u8]>>> {
         let mut results = vec![None; self.queries.num_paths()];
-        let found = self.parser.speculative_parse(
-            rec,
-            &self.queries.as_node(),
-            0,
-            rec.len() - 1,
-            0,
-            &mut results,
-        )?;
+        let found = self.parser
+            .speculative_parse(rec, &self.queries.as_node(), 0, rec.len() - 1, &mut results)?;
         if !found {
             self.parser.basic_parse(
                 rec,
                 &self.queries.as_node(),
                 0,
                 rec.len() - 1,
-                0,
                 false,
                 &mut results,
             )?;
@@ -83,7 +76,6 @@ impl<'a> Pikkr<'a> {
             &self.queries.as_node(),
             0,
             rec.len() - 1,
-            0,
             true,
             &mut results,
         )?;

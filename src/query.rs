@@ -17,6 +17,9 @@ pub struct QueryNode<'a> {
     /// A identifier of path associated with this node
     path_id: Option<usize>,
 
+    /// Level of this node in the pattern tree
+    level: usize,
+
     /// Children of this node
     children: FnvHashMap<&'a [u8], QueryNode<'a>>,
 }
@@ -51,6 +54,12 @@ impl<'a> QueryNode<'a> {
     #[inline]
     pub fn path_id(&self) -> Option<usize> {
         self.path_id
+    }
+
+    /// Returns the level of this node.
+    #[inline]
+    pub fn level(&self) -> usize {
+        self.level
     }
 
     /// Returns the reference of a child whose filed name is `field`, if available.
@@ -100,15 +109,14 @@ impl<'a> QueryTree<'a> {
         }
 
         let mut cur = &mut self.root_node;
-        let mut level = 0;
         for field in path[ROOT_QUERY_STR_OFFSET..].split(|&b| b == DOT) {
-            level = level + 1;
-
+            let level = cur.level + 1;
             let num_nodes = &mut self.num_nodes;
             let cur1 = cur; // workaround for lifetime error
             cur = cur1.children.entry(field).or_insert_with(|| {
                 let node = QueryNode {
                     node_id: Some(*num_nodes),
+                    level,
                     ..Default::default()
                 };
                 *num_nodes += 1;
@@ -118,7 +126,7 @@ impl<'a> QueryTree<'a> {
         // mark the last node as a target
         cur.path_id = Some(self.paths.len());
 
-        self.max_level = cmp::max(self.max_level, level);
+        self.max_level = cmp::max(self.max_level, cur.level);
         self.paths.push(path);
 
         Ok(())

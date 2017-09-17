@@ -29,7 +29,6 @@ fn basic_parse(b: &mut Bencher) {
                 &queries.as_node(),
                 0,
                 json_rec.len() - 1,
-                0,
                 false,
                 &mut results,
             )
@@ -58,7 +57,6 @@ fn speculative_parse(b: &mut Bencher) {
             &queries.as_node(),
             0,
             json_rec.len() - 1,
-            0,
             true,
             &mut results,
         )
@@ -72,7 +70,6 @@ fn speculative_parse(b: &mut Bencher) {
                 &queries.as_node(),
                 0,
                 json_rec.len() - 1,
-                0,
                 &mut results,
             )
             .unwrap();

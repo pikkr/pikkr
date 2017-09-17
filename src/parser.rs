@@ -26,7 +26,9 @@ impl Parser {
     }
 
     #[inline]
-    pub fn basic_parse<'a>(&mut self, rec: &'a [u8], queries: &QueryNode, start: usize, end: usize, level: usize, set_stats: bool, results: &mut Vec<Option<&'a [u8]>>) -> Result<()> {
+    pub fn basic_parse<'a>(&mut self, rec: &'a [u8], queries: &QueryNode, start: usize, end: usize, set_stats: bool, results: &mut Vec<Option<&'a [u8]>>) -> Result<()> {
+        let level = queries.level();
+
         generate_colon_positions(
             &self.index_builder.index,
             start,
@@ -61,7 +63,7 @@ impl Parser {
                     self.stats[query.id()].insert(i);
                 }
                 if !query.is_leaf() {
-                    self.basic_parse(rec, query, vsi, vei, level + 1, set_stats, results)?;
+                    self.basic_parse(rec, query, vsi, vei, set_stats, results)?;
                 }
                 if let Some(i) = query.path_id() {
                     results[i] = Some(&rec[vsi..vei + 1]);
@@ -76,7 +78,9 @@ impl Parser {
     }
 
     #[inline]
-    pub fn speculative_parse<'a>(&self, rec: &'a [u8], queries: &QueryNode, start: usize, end: usize, level: usize, results: &mut Vec<Option<&'a [u8]>>) -> Result<bool> {
+    pub fn speculative_parse<'a>(&self, rec: &'a [u8], queries: &QueryNode, start: usize, end: usize, results: &mut Vec<Option<&'a [u8]>>) -> Result<bool> {
+        let level = queries.level();
+
         generate_colon_positions(
             &self.index_builder.index,
             start,
@@ -120,7 +124,7 @@ impl Parser {
                         if i == cp_len - 1 { RIGHT_BRACE } else { COMMA },
                     )?;
                     if !q.is_leaf() {
-                        found = self.speculative_parse(rec, q, vsi, vei, level + 1, results)?;
+                        found = self.speculative_parse(rec, q, vsi, vei, results)?;
                     } else {
                         found = true;
                     }
@@ -259,7 +263,6 @@ mod tests {
             &queries.as_node(),
             0,
             json_rec.len() - 1,
-            0,
             true,
             &mut results,
         );
