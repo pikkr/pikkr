@@ -15,22 +15,20 @@ fn basic_parse(b: &mut Bencher) {
 
     let queries = QueryTree::new(query_strs).unwrap();
 
-    let l = 10;
-    let mut parser = Parser::new(l, queries.num_nodes);
+    let mut parser = Parser::new(&queries);
     parser
         .index_builder
         .build_structural_indices(json_rec)
         .unwrap();
 
     b.iter(|| {
-        let mut results = vec![None; queries.num_queries];
+        let mut results = vec![None; query_strs.len()];
         parser
             .basic_parse(
                 json_rec,
-                &queries.root,
+                &queries.as_node(),
                 0,
                 json_rec.len() - 1,
-                0,
                 false,
                 &mut results,
             )
@@ -46,35 +44,32 @@ fn speculative_parse(b: &mut Bencher) {
 
     let queries = QueryTree::new(query_strs).unwrap();
 
-    let l = 10;
-    let mut parser = Parser::new(l, queries.num_nodes);
+    let mut parser = Parser::new(&queries);
     parser
         .index_builder
         .build_structural_indices(json_rec)
         .unwrap();
 
-    let mut results = vec![None; queries.num_queries];
+    let mut results = vec![None; query_strs.len()];
     parser
         .basic_parse(
             json_rec,
-            &queries.root,
+            &queries.as_node(),
             0,
             json_rec.len() - 1,
-            0,
             true,
             &mut results,
         )
         .unwrap();
 
     b.iter(|| {
-        let mut results = vec![None; queries.num_queries];
+        let mut results = vec![None; query_strs.len()];
         parser
             .speculative_parse(
                 json_rec,
-                &queries.root,
+                &queries.as_node(),
                 0,
                 json_rec.len() - 1,
-                0,
                 &mut results,
             )
             .unwrap();

@@ -1,4 +1,5 @@
 use std::cmp;
+use std::collections::hash_map;
 use fnv::FnvHashMap;
 use error::{Error, ErrorKind};
 use result::Result;
@@ -7,53 +8,152 @@ use utf8::{DOLLAR, DOT};
 const ROOT_QUERY_STR_OFFSET: usize = 2;
 
 
-#[derive(Debug)]
-pub struct Query<'a> {
-    pub i: usize,
-    pub ri: usize,
-    pub target: bool,
-    pub children: Option<FnvHashMap<&'a [u8], Query<'a>>>,
+/// A node in pattern tree
+#[derive(Debug, Default)]
+pub struct QueryNode<'a> {
+    /// The identifier of this node
+    node_id: Option<usize>,
+
+    /// A identifier of path associated with this node
+    path_id: Option<usize>,
+
+    /// Level of this node in the pattern tree
+    level: usize,
+
+    /// Children of this node
+    children: FnvHashMap<&'a [u8], QueryNode<'a>>,
 }
 
+impl<'a> QueryNode<'a> {
+    /// Returns whether this node is a leaf or not.
+    #[inline]
+    pub fn is_leaf(&self) -> bool {
+        self.children.is_empty()
+    }
+
+    /// Returns the identifier of this node, if avaialble.
+    ///
+    /// This function will return a `None` if the node is root.
+    #[inline]
+    pub fn node_id(&self) -> Option<usize> {
+        self.node_id
+    }
+
+    /// Returns the identifier of this node.
+    ///
+    /// # Panics
+    /// This function will panic if the node is root.
+    #[inline]
+    pub fn id(&self) -> usize {
+        self.node_id.expect("The node is a root")
+    }
+
+    /// Returns the path identifier associated with this node.
+    ///
+    /// This function will return a `None` if the node is not a target.
+    #[inline]
+    pub fn path_id(&self) -> Option<usize> {
+        self.path_id
+    }
+
+    /// Returns the level of this node.
+    #[inline]
+    pub fn level(&self) -> usize {
+        self.level
+    }
+
+    /// Returns the reference of a child whose filed name is `field`, if available.
+    #[inline]
+    pub fn get_child(&self, field: &[u8]) -> Option<&QueryNode> {
+        self.children.get(field)
+    }
+
+    /// Returns the number of childrens of this node.
+    ///
+    /// This function will return a zero if it is a leaf.
+    #[inline]
+    pub fn num_children(&self) -> usize {
+        self.children.len()
+    }
+
+    #[inline]
+    pub fn iter(&self) -> hash_map::Iter<&'a [u8], QueryNode<'a>> {
+        self.children.iter()
+    }
+}
+
+
 /// A pattern tree associated with the queries
+#[derive(Debug, Default)]
 pub struct QueryTree<'a> {
-    pub root: FnvHashMap<&'a [u8], Query<'a>>,
-    pub num_queries: usize,
-    pub max_depth: usize,
-    pub num_nodes: usize,
+    root_node: QueryNode<'a>,
+    paths: Vec<&'a [u8]>,
+    max_level: usize,
+    num_nodes: usize,
 }
 
 impl<'a> QueryTree<'a> {
-    pub fn new<S: ?Sized + AsRef<[u8]>>(queries: &[&'a S]) -> Result<Self> {
-        let mut root = FnvHashMap::default();
-        let mut level = 0;
-        let mut qi = 0;
+    /// Create a new instance of `QueryTree` with given path sequence.
+    pub fn new<S: ?Sized + AsRef<[u8]>>(paths: &[&'a S]) -> Result<Self> {
+        let mut tree = Self::default();
+        for path in paths {
+            tree.add_path((*path).as_ref())?;
+        }
+        Ok(tree)
+    }
 
-        for (ri, s) in queries.into_iter().map(|s| (*s).as_ref()).enumerate() {
-            if !is_valid_query_str(s) {
-                return Err(Error::from(ErrorKind::InvalidQuery));
-            }
-
-            let l = set_queries(&mut root, &s[ROOT_QUERY_STR_OFFSET..], || {
-                let query = Query {
-                    i: qi,
-                    ri,
-                    target: false,
-                    children: None,
-                };
-                qi += 1;
-                query
-            });
-
-            level = cmp::max(level, l);
+    /// Add a path into the pattern tree.
+    fn add_path(&mut self, path: &'a [u8]) -> Result<()> {
+        if !is_valid_query_str(path) {
+            return Err(Error::from(ErrorKind::InvalidQuery));
         }
 
-        Ok(Self {
-            root,
-            num_queries: queries.len(),
-            max_depth: level,
-            num_nodes: qi,
-        })
+        let mut cur = &mut self.root_node;
+        for field in path[ROOT_QUERY_STR_OFFSET..].split(|&b| b == DOT) {
+            let level = cur.level + 1;
+            let num_nodes = &mut self.num_nodes;
+            let cur1 = cur; // workaround for lifetime error
+            cur = cur1.children.entry(field).or_insert_with(|| {
+                let node = QueryNode {
+                    node_id: Some(*num_nodes),
+                    level,
+                    ..Default::default()
+                };
+                *num_nodes += 1;
+                node
+            });
+        }
+        // mark the last node as a target
+        cur.path_id = Some(self.paths.len());
+
+        self.max_level = cmp::max(self.max_level, cur.level);
+        self.paths.push(path);
+
+        Ok(())
+    }
+
+    /// Returns the reference of root node of this pattern tree.
+    #[inline]
+    pub fn as_node(&self) -> &QueryNode {
+        &self.root_node
+    }
+
+    /// Returns the max level of pattern tree.
+    #[inline]
+    pub fn max_level(&self) -> usize {
+        self.max_level
+    }
+
+    /// Returns the number of query paths, registered in this pattern tree.
+    #[inline]
+    pub fn num_paths(&self) -> usize {
+        self.paths.len()
+    }
+
+    /// Returns the number of nodes excluding root node in this pattern tree.
+    #[inline]
+    pub fn num_nodes(&self) -> usize {
+        self.num_nodes
     }
 }
 
@@ -73,25 +173,6 @@ fn is_valid_query_str(query_str: &[u8]) -> bool {
         s = i;
     }
     true
-}
-
-#[inline]
-fn set_queries<'a, F>(queries: &mut FnvHashMap<&'a [u8], Query<'a>>, s: &'a [u8], mut factory: F) -> usize
-where
-    F: FnMut() -> Query<'a>,
-{
-    let j = s.iter().position(|&c| c == DOT).unwrap_or(s.len());
-    let (t, u) = s.split_at(j);
-
-    let query = queries.entry(t).or_insert_with(&mut factory);
-    if u.len() > 1 {
-        // The remaining segments are exist
-        let children = query.children.get_or_insert(FnvHashMap::default());
-        set_queries(children, &u[1..], factory) + 1
-    } else {
-        query.target = true; // mark the node as a target node
-        1
-    }
 }
 
 #[cfg(test)]
